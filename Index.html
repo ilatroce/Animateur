@@ -8,7 +8,8 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #1a1a1a; }
         canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
-        #ui-layer { pointer-events: none; }
+        #canvas-container { position: fixed; inset: 0; z-index: 0; }
+        #ui-layer { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
         .interactive-ui { pointer-events: auto; }
         #timeline-track { touch-action: none; user-select: none; }
         #timeline-playhead {
@@ -123,6 +124,9 @@
                             </a>
                             <a href="./AutoRigScene.html" target="_blank" rel="noopener noreferrer" class="block w-full bg-amber-500/85 hover:bg-amber-400 text-center text-slate-950 text-sm font-semibold py-2 px-3 rounded-lg transition-colors">
                                 Open Auto Rig Scene
+                            </a>
+                            <a href="./Playground.html" target="_blank" rel="noopener noreferrer" class="block w-full bg-cyan-600/85 hover:bg-cyan-500 text-center text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors">
+                                Open Playground
                             </a>
                         </div>
 
@@ -352,15 +356,17 @@
             const raycaster = new THREE.Raycaster();
             const mouse = new THREE.Vector2();
 
-            window.addEventListener('pointerdown', (event) => {
-                // Ignore clicks on UI
-                if(event.target.closest('.interactive-ui')) return;
-                
-                // If gizmo is being manipulated, ignore
-                if (transformControl.axis !== null) return;
+            renderer.domElement.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) return;
 
-                mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-                mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+                // Let TransformControls consume gizmo drags without the picker deselecting the joint.
+                if (isTransformControlAxisActive()) return;
+
+                const rect = renderer.domElement.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return;
+
+                mouse.x = ( (event.clientX - rect.left) / rect.width ) * 2 - 1;
+                mouse.y = - ( (event.clientY - rect.top) / rect.height ) * 2 + 1;
 
                 raycaster.setFromCamera( mouse, camera );
                 const intersects = raycaster.intersectObjects( interactables, false );
@@ -1495,6 +1501,10 @@
             return typeof transformControl?.getMode === 'function'
                 ? transformControl.getMode()
                 : transformControl?.mode;
+        }
+
+        function isTransformControlAxisActive() {
+            return transformControl?.axis !== null && transformControl?.axis !== undefined;
         }
 
         function getCharacterRootFromJoint(joint) {

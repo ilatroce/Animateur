@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AnimTest Arena</title>
+    <title>Playground</title>
     <style>
         :root {
             color-scheme: dark;
@@ -197,8 +197,8 @@
     <div id="hud">
         <section class="panel">
             <div class="panel-body">
-                <p class="eyebrow">Playable Animation Test</p>
-                <h1>AnimTest Arena</h1>
+                <p class="eyebrow">Playable Animation Playground</p>
+                <h1>Playground</h1>
                 <p class="lede">
                     Wander with the player, let walk cycles reshuffle while moving, fire random acrobatic moves with
                     <strong>Space</strong>, cast the summon with <strong>H</strong>, and use <strong>E</strong> near NPCs for the
@@ -225,7 +225,7 @@
 
                 <div class="status-card">
                     <p class="status-label">Status</p>
-                    <p id="status-text" class="status-text tone-info">Booting scene and loading animation pools from <code>./anims</code>...</p>
+                    <p id="status-text" class="status-text tone-info">Booting scene and loading animation pools from <code>./Animations</code>...</p>
                 </div>
             </div>
         </section>
@@ -255,8 +255,8 @@
     </div>
 
     <div class="footer-note">
-        If local asset auto-load is blocked by the browser, use “Load JSON Files” and select the files from
-        <code>C:\Users\canva\Desktop\Animator\anims</code>.
+        If local asset auto-load is blocked by the browser, use "Load JSON Files" and select the files from
+        <code>C:\Users\canva\Desktop\Animateur\Animations</code>.
     </div>
 
     <input id="asset-file-input" type="file" accept=".json,application/json" multiple hidden>
@@ -346,7 +346,7 @@
             const autoLoaded = await tryAutoLoadManifest();
             if (!autoLoaded) {
                 setStatus(
-                    'Auto-loading from ./anims was blocked. The scene is ready, and you can use “Load JSON Files” to import the animation files manually.',
+                    'Auto-loading from ./Animations was blocked. The scene is ready, and you can use "Load JSON Files" to import the animation files manually.',
                     'warning'
                 );
             }
@@ -506,7 +506,7 @@
 
         async function tryAutoLoadManifest() {
             const results = await Promise.allSettled(
-                ASSET_MANIFEST.map(entry => fetch(`./anims/${entry.file}`).then(response => {
+                ASSET_MANIFEST.map(entry => fetch(`./Animations/${entry.file}`).then(response => {
                     if (!response.ok) {
                         throw new Error(`${entry.file} returned ${response.status}`);
                     }
