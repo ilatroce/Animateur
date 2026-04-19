@@ -297,6 +297,62 @@
             color: var(--rose);
         }
 
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            background: rgba(3, 8, 13, 0.58);
+            backdrop-filter: blur(8px);
+        }
+
+        .loading-overlay[hidden] {
+            display: none;
+        }
+
+        .loading-box {
+            width: min(360px, 100%);
+            border-radius: 18px;
+            border: 1px solid rgba(120, 247, 255, 0.24);
+            background: rgba(7, 16, 26, 0.94);
+            box-shadow: var(--shadow);
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .loading-spinner {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 auto;
+            border-radius: 50%;
+            border: 3px solid rgba(120, 247, 255, 0.18);
+            border-top-color: var(--cyan);
+            animation: spin 850ms linear infinite;
+        }
+
+        .loading-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 800;
+        }
+
+        .loading-detail {
+            margin: 4px 0 0;
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .viewport-head {
             display: flex;
             align-items: center;
@@ -362,10 +418,22 @@
                 <p class="eyebrow">Skinned Export Pipeline</p>
                 <h1>Auto Rig Scene</h1>
                 <p class="lede">
-                    Pick a Fast Poser animation, auto-build a simple cube rig with bone weights, preview the visible
-                    rig in real time, then export the skinned result as a game-engine friendly GLB.
+                    Pick a Fast Poser animation, auto-build a simple skinned rig from generated cubes or an imported
+                    3D model, preview the motion in real time, then export the rigged result as a game-engine friendly GLB.
                 </p>
             </div>
+
+            <section class="group">
+                <p class="group-title">Character Model</p>
+                <label>
+                    <span class="field-label">Mesh Source</span>
+                    <select id="model-select"></select>
+                </label>
+                <div class="button-row">
+                    <button id="import-model-btn">Import Model</button>
+                    <button id="clear-model-btn">Use Cubes</button>
+                </div>
+            </section>
 
             <section class="group">
                 <p class="group-title">Animation</p>
@@ -405,7 +473,7 @@
                     </label>
                     <label class="toggle">
                         <input id="show-mesh-toggle" type="checkbox" checked>
-                        <span>Show cubes</span>
+                        <span>Show mesh</span>
                     </label>
                     <label class="toggle">
                         <input id="loop-toggle" type="checkbox" checked>
@@ -423,6 +491,7 @@
                 <div class="stats">
                     <div class="stat-row"><strong>Clip</strong><span id="stat-name">None loaded</span></div>
                     <div class="stat-row"><strong>Source</strong><span id="stat-source">-</span></div>
+                    <div class="stat-row"><strong>Model</strong><span id="stat-model">Generated cubes</span></div>
                     <div class="stat-row"><strong>Characters</strong><span id="stat-characters">0</span></div>
                     <div class="stat-row"><strong>Bones / Char</strong><span id="stat-bones">0</span></div>
                     <div class="stat-row"><strong>Keyframes</strong><span id="stat-keyframes">0</span></div>
@@ -458,16 +527,39 @@
     </div>
 
     <input id="file-input" type="file" accept=".json,application/json" hidden>
+    <input id="model-file-input" type="file" accept=".obj,.glb,.gltf,.fbx,.mtl,.bin,image/*" multiple hidden>
+    <div id="loading-overlay" class="loading-overlay" hidden>
+        <div class="loading-box">
+            <div class="loading-spinner"></div>
+            <div>
+                <p id="loading-title" class="loading-title">Loading</p>
+                <p id="loading-detail" class="loading-detail">Preparing the scene.</p>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+        import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
         import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
         import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
         const STORAGE_KEY = 'fast-poser:animation-library';
-        const JOINT_COUNT = 11;
+        const GENERATED_MODEL_ID = 'generated:cubes';
+        const LOCAL_MODELS = [
+            {
+                id: 'local:tripo-convert-e10d6432',
+                label: '3D Models / Tripo OBJ',
+                sourceLabel: '3D models folder',
+                file: './3D%20models/tripo_convert_e10d6432-f799-4163-a47d-7301a4713d97.obj',
+                type: 'obj'
+            }
+        ];
         const BUILTIN_ANIMATIONS = [
             { id: 'sample:walking-realistic', label: 'Bundled / Walking Realistic', file: './Animations/walking-realistic.animation.json' },
             { id: 'sample:walking', label: 'Bundled / Walking Stylized', file: './Animations/walking-anim.animation.json' },
@@ -480,37 +572,80 @@
             { id: 'sample:summon', label: 'Bundled / Summoning Magic', file: './Animations/summoning-magic.animation.json' }
         ];
         const DEFAULT_COLORS = ['#77f7ff', '#ffcc78', '#9bf0a8', '#ff9eb0', '#b4a3ff', '#f7f2a1'];
+        const MODEL_TARGET_HEIGHT = 4.18;
+        const MODEL_FOOT_Y = 0.12;
         const JOINT_LAYOUT = [
             { baseName: 'Hips', parent: null, position: [0, 2.6, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Spine', parent: 'Hips', position: [0, 0.2, 0], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Neck', parent: 'Spine', position: [0, 1.02, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Head', parent: 'Spine', position: [0, 1.2, 0], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Left_Shoulder', parent: 'Spine', position: [0.42, 1.02, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Left_Upper_Arm', parent: 'Spine', position: [0.6, 1.1, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Left_Lower_Arm', parent: 'Left_Upper_Arm', position: [0, -0.9, 0], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Left_Hand', parent: 'Left_Lower_Arm', position: [0, -0.88, 0.02], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Right_Shoulder', parent: 'Spine', position: [-0.42, 1.02, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Right_Upper_Arm', parent: 'Spine', position: [-0.6, 1.1, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Right_Lower_Arm', parent: 'Right_Upper_Arm', position: [0, -0.9, 0], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Right_Hand', parent: 'Right_Lower_Arm', position: [0, -0.88, 0.02], quaternion: [0, 0, 0, 1] },
             { baseName: 'Left_Upper_Leg', parent: 'Hips', position: [0.25, -0.2, 0], quaternion: [0, 0, 0, 1] },
             { baseName: 'Left_Lower_Leg', parent: 'Left_Upper_Leg', position: [0, -1.1, 0], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Left_Foot', parent: 'Left_Lower_Leg', position: [0, -1.05, 0.18], quaternion: [0, 0, 0, 1] },
             { baseName: 'Right_Upper_Leg', parent: 'Hips', position: [-0.25, -0.2, 0], quaternion: [0, 0, 0, 1] },
-            { baseName: 'Right_Lower_Leg', parent: 'Right_Upper_Leg', position: [0, -1.1, 0], quaternion: [0, 0, 0, 1] }
+            { baseName: 'Right_Lower_Leg', parent: 'Right_Upper_Leg', position: [0, -1.1, 0], quaternion: [0, 0, 0, 1] },
+            { baseName: 'Right_Foot', parent: 'Right_Lower_Leg', position: [0, -1.05, 0.18], quaternion: [0, 0, 0, 1] }
         ];
+        const JOINT_COUNT = JOINT_LAYOUT.length;
         const SEGMENT_LAYOUT = [
             { bone: 'Hips', parent: null, child: null, size: [1.0, 0.42, 0.6], anchor: 'center', length: 0.42, divisions: 1, blend: 0 },
             { bone: 'Spine', parent: 'Hips', child: 'Head', size: [0.9, 1.2, 0.5], anchor: 'positive', length: 1.2, divisions: 6, blend: 0.24 },
+            { bone: 'Neck', parent: 'Spine', child: 'Head', size: [0.34, 0.3, 0.34], anchor: 'positive', length: 0.3, divisions: 2, blend: 0.2 },
             { bone: 'Head', parent: 'Spine', child: null, size: [0.7, 0.8, 0.7], anchor: 'positive', length: 0.8, divisions: 4, blend: 0.22 },
+            { bone: 'Left_Shoulder', parent: 'Spine', child: 'Left_Upper_Arm', size: [0.34, 0.24, 0.32], anchor: 'center', length: 0.24, divisions: 1, blend: 0 },
             { bone: 'Left_Upper_Arm', parent: 'Spine', child: 'Left_Lower_Arm', size: [0.25, 0.9, 0.25], anchor: 'negative', length: 0.9, divisions: 6, blend: 0.26 },
-            { bone: 'Left_Lower_Arm', parent: 'Left_Upper_Arm', child: null, size: [0.22, 0.9, 0.22], anchor: 'negative', length: 0.9, divisions: 6, blend: 0.24 },
+            { bone: 'Left_Lower_Arm', parent: 'Left_Upper_Arm', child: 'Left_Hand', size: [0.22, 0.9, 0.22], anchor: 'negative', length: 0.9, divisions: 6, blend: 0.24 },
+            { bone: 'Left_Hand', parent: 'Left_Lower_Arm', child: null, size: [0.26, 0.22, 0.28], anchor: 'negative', length: 0.22, divisions: 1, blend: 0.08 },
+            { bone: 'Right_Shoulder', parent: 'Spine', child: 'Right_Upper_Arm', size: [0.34, 0.24, 0.32], anchor: 'center', length: 0.24, divisions: 1, blend: 0 },
             { bone: 'Right_Upper_Arm', parent: 'Spine', child: 'Right_Lower_Arm', size: [0.25, 0.9, 0.25], anchor: 'negative', length: 0.9, divisions: 6, blend: 0.26 },
-            { bone: 'Right_Lower_Arm', parent: 'Right_Upper_Arm', child: null, size: [0.22, 0.9, 0.22], anchor: 'negative', length: 0.9, divisions: 6, blend: 0.24 },
+            { bone: 'Right_Lower_Arm', parent: 'Right_Upper_Arm', child: 'Right_Hand', size: [0.22, 0.9, 0.22], anchor: 'negative', length: 0.9, divisions: 6, blend: 0.24 },
+            { bone: 'Right_Hand', parent: 'Right_Lower_Arm', child: null, size: [0.26, 0.22, 0.28], anchor: 'negative', length: 0.22, divisions: 1, blend: 0.08 },
             { bone: 'Left_Upper_Leg', parent: 'Hips', child: 'Left_Lower_Leg', size: [0.35, 1.1, 0.35], anchor: 'negative', length: 1.1, divisions: 7, blend: 0.24 },
-            { bone: 'Left_Lower_Leg', parent: 'Left_Upper_Leg', child: null, size: [0.31, 1.1, 0.31], anchor: 'negative', length: 1.1, divisions: 7, blend: 0.24 },
+            { bone: 'Left_Lower_Leg', parent: 'Left_Upper_Leg', child: 'Left_Foot', size: [0.31, 1.1, 0.31], anchor: 'negative', length: 1.1, divisions: 7, blend: 0.24 },
+            { bone: 'Left_Foot', parent: 'Left_Lower_Leg', child: null, size: [0.32, 0.22, 0.54], anchor: 'center', length: 0.22, divisions: 1, blend: 0 },
             { bone: 'Right_Upper_Leg', parent: 'Hips', child: 'Right_Lower_Leg', size: [0.35, 1.1, 0.35], anchor: 'negative', length: 1.1, divisions: 7, blend: 0.24 },
-            { bone: 'Right_Lower_Leg', parent: 'Right_Upper_Leg', child: null, size: [0.31, 1.1, 0.31], anchor: 'negative', length: 1.1, divisions: 7, blend: 0.24 }
+            { bone: 'Right_Lower_Leg', parent: 'Right_Upper_Leg', child: 'Right_Foot', size: [0.31, 1.1, 0.31], anchor: 'negative', length: 1.1, divisions: 7, blend: 0.24 },
+            { bone: 'Right_Foot', parent: 'Right_Lower_Leg', child: null, size: [0.32, 0.22, 0.54], anchor: 'center', length: 0.22, divisions: 1, blend: 0 }
         ];
+        const AUTO_SKIN_SEGMENTS = [
+            { bone: 'Hips', a: [-0.46, 2.48, 0], b: [0.46, 2.48, 0], radius: 0.66, region: 'core' },
+            { bone: 'Spine', a: [0, 2.68, 0], b: [0, 3.52, 0], radius: 0.62, region: 'core' },
+            { bone: 'Neck', a: [0, 3.48, 0], b: [0, 3.78, 0], radius: 0.34, region: 'neck' },
+            { bone: 'Head', a: [0, 3.76, 0], b: [0, 4.34, 0], radius: 0.48, region: 'head' },
+            { bone: 'Left_Shoulder', a: [0.26, 3.58, 0], b: [0.72, 3.66, 0], radius: 0.34, region: 'leftShoulder' },
+            { bone: 'Left_Upper_Arm', a: [0.66, 3.58, 0], b: [0.7, 2.94, 0], radius: 0.36, region: 'leftArm' },
+            { bone: 'Left_Lower_Arm', a: [0.7, 2.94, 0], b: [0.58, 2.22, 0.03], radius: 0.34, region: 'leftArm' },
+            { bone: 'Left_Hand', a: [0.58, 2.26, 0.03], b: [0.5, 2.02, 0.08], radius: 0.42, region: 'leftHand' },
+            { bone: 'Right_Shoulder', a: [-0.26, 3.58, 0], b: [-0.72, 3.66, 0], radius: 0.34, region: 'rightShoulder' },
+            { bone: 'Right_Upper_Arm', a: [-0.66, 3.58, 0], b: [-0.7, 2.94, 0], radius: 0.36, region: 'rightArm' },
+            { bone: 'Right_Lower_Arm', a: [-0.7, 2.94, 0], b: [-0.58, 2.22, 0.03], radius: 0.34, region: 'rightArm' },
+            { bone: 'Right_Hand', a: [-0.58, 2.26, 0.03], b: [-0.5, 2.02, 0.08], radius: 0.42, region: 'rightHand' },
+            { bone: 'Left_Upper_Leg', a: [0.28, 2.38, 0], b: [0.3, 1.34, 0], radius: 0.4, region: 'leftLeg' },
+            { bone: 'Left_Lower_Leg', a: [0.3, 1.34, 0], b: [0.26, 0.3, 0.02], radius: 0.34, region: 'leftLeg' },
+            { bone: 'Left_Foot', a: [0.26, 0.28, 0.02], b: [0.26, 0.08, 0.34], radius: 0.36, region: 'leftFoot' },
+            { bone: 'Right_Upper_Leg', a: [-0.28, 2.38, 0], b: [-0.3, 1.34, 0], radius: 0.4, region: 'rightLeg' },
+            { bone: 'Right_Lower_Leg', a: [-0.3, 1.34, 0], b: [-0.26, 0.3, 0.02], radius: 0.34, region: 'rightLeg' },
+            { bone: 'Right_Foot', a: [-0.26, 0.28, 0.02], b: [-0.26, 0.08, 0.34], radius: 0.36, region: 'rightFoot' }
+        ].map(segment => ({
+            ...segment,
+            a: new THREE.Vector3(...segment.a),
+            b: new THREE.Vector3(...segment.b)
+        }));
 
         const ui = {};
         const state = {
             catalog: new Map(),
+            modelCatalog: new Map(),
             loadVersion: 0,
+            modelLoadVersion: 0,
             scene: null,
             camera: null,
             renderer: null,
@@ -518,6 +653,8 @@
             clock: new THREE.Clock(),
             currentAsset: null,
             currentSourceLabel: '-',
+            currentModelAsset: null,
+            currentModelSourceLabel: 'Generated cubes',
             exportRoot: null,
             characters: [],
             mixer: null,
@@ -527,6 +664,9 @@
             currentTime: 0,
             isPlaying: false
         };
+        const tempSkinSegment = new THREE.Vector3();
+        const tempSkinOffset = new THREE.Vector3();
+        const tempSkinProjection = new THREE.Vector3();
 
         try {
             init();
@@ -544,10 +684,14 @@
             cacheUi();
             initScene();
             wireUi();
+            populateModelCatalog();
             populateAnimationCatalog();
         }
 
         function cacheUi() {
+            ui.modelSelect = document.getElementById('model-select');
+            ui.importModelBtn = document.getElementById('import-model-btn');
+            ui.clearModelBtn = document.getElementById('clear-model-btn');
             ui.animationSelect = document.getElementById('animation-select');
             ui.reloadBtn = document.getElementById('reload-btn');
             ui.importBtn = document.getElementById('import-btn');
@@ -563,10 +707,15 @@
             ui.autoLoadToggle = document.getElementById('auto-load-toggle');
             ui.statusText = document.getElementById('status-text');
             ui.fileInput = document.getElementById('file-input');
+            ui.modelFileInput = document.getElementById('model-file-input');
+            ui.loadingOverlay = document.getElementById('loading-overlay');
+            ui.loadingTitle = document.getElementById('loading-title');
+            ui.loadingDetail = document.getElementById('loading-detail');
             ui.viewport = document.getElementById('viewport');
             ui.viewportMeta = document.getElementById('viewport-meta');
             ui.statName = document.getElementById('stat-name');
             ui.statSource = document.getElementById('stat-source');
+            ui.statModel = document.getElementById('stat-model');
             ui.statCharacters = document.getElementById('stat-characters');
             ui.statBones = document.getElementById('stat-bones');
             ui.statKeyframes = document.getElementById('stat-keyframes');
@@ -632,9 +781,16 @@
         }
 
         function wireUi() {
+            ui.modelSelect.addEventListener('change', () => applySelectedModel());
+            ui.importModelBtn.addEventListener('click', () => ui.modelFileInput.click());
+            ui.clearModelBtn.addEventListener('click', () => {
+                ui.modelSelect.value = GENERATED_MODEL_ID;
+                applySelectedModel();
+            });
             ui.reloadBtn.addEventListener('click', populateAnimationCatalog);
             ui.importBtn.addEventListener('click', () => ui.fileInput.click());
             ui.fileInput.addEventListener('change', handleFileImport);
+            ui.modelFileInput.addEventListener('change', handleModelFileImport);
             ui.loadBtn.addEventListener('click', loadSelectedAnimation);
             ui.resetBtn.addEventListener('click', resetPreview);
             ui.playBtn.addEventListener('click', togglePlayback);
@@ -662,6 +818,123 @@
             const toneClass = tone === 'success' ? 'tone-success' : tone === 'error' ? 'tone-error' : 'tone-info';
             ui.statusText.className = `status-text ${toneClass}`;
             ui.statusText.textContent = message;
+        }
+
+        function setBusy(isBusy, title = 'Loading', detail = 'Preparing the scene.') {
+            ui.loadingOverlay.hidden = !isBusy;
+            ui.loadingTitle.textContent = title;
+            ui.loadingDetail.textContent = detail;
+
+            [
+                ui.modelSelect,
+                ui.importModelBtn,
+                ui.clearModelBtn,
+                ui.animationSelect,
+                ui.reloadBtn,
+                ui.importBtn,
+                ui.loadBtn,
+                ui.resetBtn,
+                ui.playBtn,
+                ui.exportBtn,
+                ui.timeRange
+            ].forEach(control => {
+                if (control) control.disabled = isBusy;
+            });
+
+            if (!isBusy) {
+                updatePlaybackUi();
+            }
+        }
+
+        function waitForPaint() {
+            return new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(resolve);
+                });
+            });
+        }
+
+        function populateModelCatalog() {
+            const previous = ui.modelSelect.value || GENERATED_MODEL_ID;
+            state.modelCatalog.clear();
+            state.modelCatalog.set(GENERATED_MODEL_ID, {
+                id: GENERATED_MODEL_ID,
+                label: 'Generated cube rig',
+                sourceLabel: 'Generated cubes',
+                load: async () => null
+            });
+
+            LOCAL_MODELS.forEach(entry => {
+                state.modelCatalog.set(entry.id, {
+                    ...entry,
+                    load: async () => loadModelAssetFromUrl(entry)
+                });
+            });
+
+            refreshModelSelect(previous);
+        }
+
+        function refreshModelSelect(preferredValue = ui.modelSelect.value) {
+            ui.modelSelect.innerHTML = '';
+
+            Array.from(state.modelCatalog.values()).forEach(entry => {
+                const option = document.createElement('option');
+                option.value = entry.id;
+                option.textContent = entry.label;
+                ui.modelSelect.appendChild(option);
+            });
+
+            ui.modelSelect.value = state.modelCatalog.has(preferredValue) ? preferredValue : GENERATED_MODEL_ID;
+        }
+
+        async function applySelectedModel() {
+            const entry = state.modelCatalog.get(ui.modelSelect.value);
+            if (!entry) return;
+
+            const loadToken = ++state.modelLoadVersion;
+            const loadTitle = entry.id === GENERATED_MODEL_ID ? 'Switching Mesh' : 'Importing 3D Model';
+
+            try {
+                if (entry.id === GENERATED_MODEL_ID) {
+                    setBusy(true, loadTitle, 'Rebuilding the generated cube rig.');
+                    await waitForPaint();
+                    state.currentModelAsset = null;
+                    state.currentModelSourceLabel = entry.sourceLabel;
+                    await rebuildCurrentRigWithModel(`Using generated cube meshes.`, 'success');
+                    return;
+                }
+
+                setStatus(`Loading "${entry.label}" as the rig mesh...`);
+                setBusy(true, loadTitle, `Reading "${entry.label}" and preparing it for skinning.`);
+                await waitForPaint();
+                const modelAsset = await entry.load();
+                if (loadToken !== state.modelLoadVersion) return;
+
+                state.currentModelAsset = modelAsset;
+                state.currentModelSourceLabel = entry.sourceLabel;
+                setBusy(true, 'Auto Rigging Model', 'Fitting bones and calculating skin weights.');
+                await waitForPaint();
+                await rebuildCurrentRigWithModel(`Model "${modelAsset.name}" is ready for auto rigging.`, 'success');
+            } catch (error) {
+                console.error(error);
+                setStatus(error instanceof Error ? error.message : 'Could not load that 3D model.', 'error');
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function rebuildCurrentRigWithModel(message, tone = 'info') {
+            if (state.currentAsset) {
+                const asset = state.currentAsset;
+                const sourceLabel = state.currentSourceLabel;
+                await waitForPaint();
+                buildRigFromAsset(asset, sourceLabel);
+                const modelName = state.currentModelAsset?.name || 'generated cubes';
+                setStatus(`${message} Rebuilt "${asset.name}" with ${modelName}.`, tone);
+            } else {
+                updateStats();
+                setStatus(message, tone);
+            }
         }
 
         function populateAnimationCatalog() {
@@ -759,22 +1032,256 @@
             }
         }
 
+        async function handleModelFileImport(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
+
+            try {
+                const mainFile = pickMainModelFile(files);
+                const modelName = mainFile ? mainFile.name : 'selected model';
+                setStatus(`Importing "${modelName}"...`);
+                setBusy(true, 'Importing 3D Model', `Reading "${modelName}" and linked assets.`);
+                await waitForPaint();
+                const modelAsset = await loadModelAssetFromFiles(files);
+                const id = `model-import:${Date.now()}`;
+                state.modelCatalog.set(id, {
+                    id,
+                    label: `Imported / ${modelAsset.name}`,
+                    sourceLabel: 'Imported model',
+                    load: async () => modelAsset
+                });
+                refreshModelSelect(id);
+                state.currentModelAsset = modelAsset;
+                state.currentModelSourceLabel = 'Imported model';
+                setBusy(true, 'Auto Rigging Model', 'Fitting bones and calculating skin weights.');
+                await waitForPaint();
+                await rebuildCurrentRigWithModel(`Imported "${modelAsset.name}" with ${modelAsset.meshCount} mesh${modelAsset.meshCount === 1 ? '' : 'es'}.`, 'success');
+            } catch (error) {
+                console.error(error);
+                setStatus(error instanceof Error ? error.message : 'Could not import that 3D model.', 'error');
+            } finally {
+                setBusy(false);
+                ui.modelFileInput.value = '';
+            }
+        }
+
+        async function loadModelAssetFromUrl(entry) {
+            const extension = (entry.type || getFileExtension(entry.file)).toLowerCase();
+            const response = await fetch(entry.file);
+            if (!response.ok) {
+                throw new Error(`Could not fetch ${entry.file}. Serve the repo from a local web server or import the model file directly.`);
+            }
+
+            let object;
+            if (extension === 'obj') {
+                const text = await response.text();
+                object = await parseObjText(text, null, new URL(entry.file, window.location.href));
+            } else if (extension === 'glb' || extension === 'gltf') {
+                const data = extension === 'glb' ? await response.arrayBuffer() : await response.text();
+                object = await parseGltfData(data, new THREE.LoadingManager(), entry.file);
+            } else if (extension === 'fbx') {
+                const loader = new FBXLoader();
+                object = loader.parse(await response.arrayBuffer(), entry.file);
+            } else {
+                throw new Error(`Unsupported model type ".${extension}".`);
+            }
+
+            return createModelAsset(object, entry.label.replace(/^3D Models \/ /, ''), entry.sourceLabel);
+        }
+
+        async function loadModelAssetFromFiles(files) {
+            const mainFile = pickMainModelFile(files);
+            if (!mainFile) {
+                throw new Error('Choose an OBJ, GLB, GLTF, or FBX model file.');
+            }
+
+            const extension = getFileExtension(mainFile.name);
+            const { manager, getObjectUrls } = createFileLoadingManager(files);
+            let object;
+
+            if (extension === 'obj') {
+                object = await parseObjText(await mainFile.text(), files, null, manager);
+            } else if (extension === 'glb' || extension === 'gltf') {
+                const data = extension === 'glb' ? await mainFile.arrayBuffer() : await mainFile.text();
+                object = await parseGltfData(data, manager, '');
+            } else if (extension === 'fbx') {
+                const loader = new FBXLoader(manager);
+                object = loader.parse(await mainFile.arrayBuffer(), '');
+            } else {
+                throw new Error(`Unsupported model type ".${extension}".`);
+            }
+
+            return createModelAsset(object, stripExtension(mainFile.name), 'Imported model', getObjectUrls());
+        }
+
+        async function parseObjText(text, files = null, baseUrl = null, manager = new THREE.LoadingManager()) {
+            const loader = new OBJLoader(manager);
+            const mtlFile = files ? findReferencedMtlFile(text, files) : null;
+            let materialCreator = null;
+
+            if (mtlFile) {
+                const mtlLoader = new MTLLoader(manager);
+                materialCreator = mtlLoader.parse(await mtlFile.text(), '');
+            } else if (baseUrl) {
+                const mtlName = findMtlName(text);
+                if (mtlName) {
+                    try {
+                        const mtlUrl = new URL(mtlName, baseUrl);
+                        const response = await fetch(mtlUrl);
+                        if (response.ok) {
+                            const mtlLoader = new MTLLoader(manager);
+                            materialCreator = mtlLoader.parse(await response.text(), mtlUrl.href.slice(0, mtlUrl.href.lastIndexOf('/') + 1));
+                        }
+                    } catch (error) {
+                        console.warn('Could not load OBJ material file', error);
+                    }
+                }
+            }
+
+            if (materialCreator) {
+                materialCreator.preload();
+                loader.setMaterials(materialCreator);
+            }
+
+            return loader.parse(text);
+        }
+
+        async function parseGltfData(data, manager, resourcePath) {
+            const loader = new GLTFLoader(manager);
+            const gltf = await new Promise((resolve, reject) => {
+                loader.parse(data, resourcePath, resolve, reject);
+            });
+            return gltf.scene || gltf.scenes?.[0];
+        }
+
+        function pickMainModelFile(files) {
+            const priority = ['glb', 'gltf', 'obj', 'fbx'];
+            return priority
+                .map(extension => files.find(file => getFileExtension(file.name) === extension))
+                .find(Boolean);
+        }
+
+        function createFileLoadingManager(files) {
+            const manager = new THREE.LoadingManager();
+            const objectUrls = new Map();
+            const byName = new Map();
+
+            files.forEach(file => {
+                byName.set(file.name, file);
+                byName.set(file.name.toLowerCase(), file);
+            });
+
+            manager.setURLModifier(url => {
+                const clean = decodeURIComponent(url.split(/[?#]/)[0].replace(/\\/g, '/'));
+                const fileName = clean.slice(clean.lastIndexOf('/') + 1);
+                const file = byName.get(fileName) || byName.get(fileName.toLowerCase());
+                if (!file) return url;
+                if (!objectUrls.has(file.name)) {
+                    objectUrls.set(file.name, URL.createObjectURL(file));
+                }
+                return objectUrls.get(file.name);
+            });
+
+            return {
+                manager,
+                getObjectUrls: () => Array.from(objectUrls.values())
+            };
+        }
+
+        function findReferencedMtlFile(objText, files) {
+            const mtlName = findMtlName(objText);
+            const mtlFiles = files.filter(file => getFileExtension(file.name) === 'mtl');
+            if (!mtlName) return mtlFiles[0] || null;
+            const cleanName = mtlName.replace(/\\/g, '/').split('/').pop().toLowerCase();
+            return mtlFiles.find(file => file.name.toLowerCase() === cleanName) || mtlFiles[0] || null;
+        }
+
+        function findMtlName(objText) {
+            const match = objText.match(/^mtllib\s+(.+)$/im);
+            return match ? match[1].trim() : '';
+        }
+
+        function createModelAsset(object, name, sourceLabel, objectUrls = []) {
+            if (!object) {
+                throw new Error('The model loader did not return a scene.');
+            }
+
+            object.name = object.name || name;
+            object.updateWorldMatrix(true, true);
+
+            const bounds = computeModelBounds(object);
+            if (bounds.isEmpty()) {
+                throw new Error('The selected model does not contain any readable mesh geometry.');
+            }
+
+            let meshCount = 0;
+            let vertexCount = 0;
+            object.traverse(child => {
+                if (child.isMesh && child.geometry?.attributes?.position) {
+                    meshCount += 1;
+                    vertexCount += child.geometry.attributes.position.count;
+                }
+            });
+
+            return {
+                name: String(name || object.name || 'Imported Model'),
+                sourceLabel,
+                object,
+                bounds,
+                meshCount,
+                vertexCount,
+                objectUrls
+            };
+        }
+
+        function computeModelBounds(object) {
+            const bounds = new THREE.Box3();
+            const meshBounds = new THREE.Box3();
+
+            object.updateWorldMatrix(true, true);
+            object.traverse(child => {
+                if (!child.isMesh || !child.geometry?.attributes?.position) return;
+                if (!child.geometry.boundingBox) {
+                    child.geometry.computeBoundingBox();
+                }
+                meshBounds.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld);
+                bounds.union(meshBounds);
+            });
+
+            return bounds;
+        }
+
+        function getFileExtension(fileName) {
+            return String(fileName || '').split('.').pop().toLowerCase();
+        }
+
+        function stripExtension(fileName) {
+            return String(fileName || 'Imported Model').replace(/\.[^.]+$/i, '');
+        }
+
         async function loadSelectedAnimation() {
             const entry = state.catalog.get(ui.animationSelect.value);
             if (!entry) return;
 
             const loadToken = ++state.loadVersion;
-            setStatus(`Loading "${entry.label}" and auto-rigging cube meshes...`);
+            const modelName = state.currentModelAsset?.name || 'generated cubes';
+            setStatus(`Loading "${entry.label}" and auto-rigging ${modelName}...`);
+            setBusy(true, 'Building Rig', `Loading "${entry.label}" and preparing ${modelName}.`);
+            await waitForPaint();
 
             try {
                 const asset = await entry.load();
                 if (loadToken !== state.loadVersion) return;
+                setBusy(true, 'Auto Rigging Model', 'Fitting bones and calculating skin weights.');
+                await waitForPaint();
                 buildRigFromAsset(asset, entry.sourceLabel);
                 const note = asset.ignoredEffects ? ' Non-skeletal effect metadata was skipped for GLB export.' : '';
-                setStatus(`Rig ready for "${asset.name}". Bones are visible in the preview and the clip can now export as GLB.${note}`, 'success');
+                setStatus(`Rig ready for "${asset.name}". Bones are visible in the preview and the model can now export as GLB.${note}`, 'success');
             } catch (error) {
                 console.error(error);
                 setStatus(error instanceof Error ? error.message : 'Unable to load that animation clip.', 'error');
+            } finally {
+                setBusy(false);
             }
         }
 
@@ -924,7 +1431,9 @@
             const characters = [];
             for (let characterIndex = 0; characterIndex < asset.scene.characterCount; characterIndex += 1) {
                 const color = asset.scene.characterColors[characterIndex] || DEFAULT_COLORS[characterIndex % DEFAULT_COLORS.length];
-                const character = createSkinnedCharacter(characterIndex, color);
+                const character = state.currentModelAsset
+                    ? createSkinnedModelCharacter(characterIndex, color, state.currentModelAsset)
+                    : createSkinnedCharacter(characterIndex, color);
                 exportRoot.add(character.group);
                 state.scene.add(character.helper);
                 characters.push(character);
@@ -934,7 +1443,7 @@
             state.characters = characters;
             state.scene.add(exportRoot);
 
-            state.clip = buildAnimationClip(asset);
+            state.clip = buildAnimationClip(asset, characters);
             state.duration = state.clip.duration;
             state.currentTime = 0;
 
@@ -1030,19 +1539,521 @@
             return {
                 group,
                 mesh,
+                meshes: [mesh],
                 helper
             };
         }
 
-        function createBoneHierarchy(characterIndex) {
+        function createSkinnedModelCharacter(characterIndex, colorValue, modelAsset) {
+            const group = new THREE.Group();
+            group.name = `Character_${characterIndex}`;
+
+            const fitMatrix = computeModelFitMatrix(modelAsset.bounds);
+            const restData = inferModelRestData(modelAsset, fitMatrix);
+            const { rootBone, orderedBones } = createBoneHierarchy(characterIndex, restData.localPose);
+            group.add(rootBone);
+            group.updateWorldMatrix(true, true);
+            const skeleton = new THREE.Skeleton(orderedBones);
+            const meshes = [];
+
+            modelAsset.object.updateWorldMatrix(true, true);
+            modelAsset.object.traverse(source => {
+                if (!source.isMesh || !source.geometry?.attributes?.position) return;
+
+                const geometry = createFittedModelGeometry(source, fitMatrix);
+                applyAutoSkinWeights(geometry, restData.skinSegments);
+
+                const mesh = new THREE.SkinnedMesh(geometry, cloneModelMaterial(source.material, colorValue));
+                mesh.name = `${sanitizeObjectName(source.name, 'ImportedMesh')}_${characterIndex}`;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.frustumCulled = false;
+                group.add(mesh);
+                mesh.bind(skeleton);
+                mesh.normalizeSkinWeights();
+                meshes.push(mesh);
+            });
+
+            if (meshes.length === 0) {
+                throw new Error(`"${modelAsset.name}" does not contain a mesh that can be skinned.`);
+            }
+
+            const helper = new THREE.SkeletonHelper(rootBone);
+            helper.name = `RigHelper_${characterIndex}`;
+            helper.material.color.set(DEFAULT_COLORS[characterIndex % DEFAULT_COLORS.length]);
+            helper.material.depthTest = false;
+            helper.material.depthWrite = false;
+            helper.material.transparent = true;
+            helper.material.opacity = 0.98;
+            helper.renderOrder = 10;
+            helper.frustumCulled = false;
+
+            return {
+                group,
+                mesh: meshes[0],
+                meshes,
+                helper,
+                restPose: restData.localPose
+            };
+        }
+
+        function createFittedModelGeometry(source, fitMatrix) {
+            const geometry = source.geometry.clone();
+            geometry.deleteAttribute('skinIndex');
+            geometry.deleteAttribute('skinWeight');
+            geometry.applyMatrix4(source.matrixWorld);
+            geometry.applyMatrix4(fitMatrix);
+
+            if (!geometry.attributes.normal) {
+                geometry.computeVertexNormals();
+            }
+
+            geometry.computeBoundingBox();
+            geometry.computeBoundingSphere();
+            return geometry;
+        }
+
+        function computeModelFitMatrix(bounds) {
+            const orientationMatrix = computeModelOrientationMatrix(bounds);
+            const orientedBounds = transformBounds(bounds, orientationMatrix);
+            const size = orientedBounds.getSize(new THREE.Vector3());
+            const center = orientedBounds.getCenter(new THREE.Vector3());
+            const height = Math.max(size.y, 0.001);
+            const scale = MODEL_TARGET_HEIGHT / height;
+            const translateToOrigin = new THREE.Matrix4().makeTranslation(-center.x, -orientedBounds.min.y, -center.z);
+            const scaleMatrix = new THREE.Matrix4().makeScale(scale, scale, scale);
+            const raiseToRig = new THREE.Matrix4().makeTranslation(0, MODEL_FOOT_Y, 0);
+            return new THREE.Matrix4()
+                .multiplyMatrices(raiseToRig, scaleMatrix)
+                .multiply(translateToOrigin)
+                .multiply(orientationMatrix);
+        }
+
+        function computeModelOrientationMatrix(bounds) {
+            const size = bounds.getSize(new THREE.Vector3());
+
+            if (size.z > size.x * 1.22) {
+                return new THREE.Matrix4().makeRotationY(-Math.PI / 2);
+            }
+
+            return new THREE.Matrix4().identity();
+        }
+
+        function transformBounds(bounds, matrix) {
+            const transformed = new THREE.Box3();
+            const point = new THREE.Vector3();
+
+            for (let x = 0; x <= 1; x += 1) {
+                for (let y = 0; y <= 1; y += 1) {
+                    for (let z = 0; z <= 1; z += 1) {
+                        point.set(
+                            x ? bounds.max.x : bounds.min.x,
+                            y ? bounds.max.y : bounds.min.y,
+                            z ? bounds.max.z : bounds.min.z
+                        ).applyMatrix4(matrix);
+                        transformed.expandByPoint(point);
+                    }
+                }
+            }
+
+            return transformed;
+        }
+
+        function inferModelRestData(modelAsset, fitMatrix) {
+            const stats = collectModelRestStats(modelAsset, fitMatrix);
+            const bounds = stats.bounds;
+            const size = bounds.getSize(new THREE.Vector3());
+            const center = bounds.getCenter(new THREE.Vector3());
+            const height = Math.max(size.y, 0.001);
+            const minY = bounds.min.y;
+            const maxY = bounds.max.y;
+
+            const pointOr = (group, fallback) => group.count > 0 ? group.center() : fallback.clone();
+            const hips = pointOr(stats.pelvis, new THREE.Vector3(center.x, minY + height * 0.52, center.z));
+            const spine = pointOr(stats.chest, new THREE.Vector3(center.x, minY + height * 0.72, center.z));
+            const neck = pointOr(stats.neck, new THREE.Vector3(center.x, minY + height * 0.84, center.z));
+            const head = pointOr(stats.head, new THREE.Vector3(center.x, minY + height * 0.94, center.z));
+
+            const leftShoulder = pointOr(stats.leftShoulder, new THREE.Vector3(bounds.max.x * 0.42, spine.y + height * 0.04, center.z));
+            const rightShoulder = pointOr(stats.rightShoulder, new THREE.Vector3(bounds.min.x * 0.42, spine.y + height * 0.04, center.z));
+            const leftHand = pointOr(stats.leftHand, new THREE.Vector3(bounds.max.x * 0.86, minY + height * 0.48, center.z));
+            const rightHand = pointOr(stats.rightHand, new THREE.Vector3(bounds.min.x * 0.86, minY + height * 0.48, center.z));
+            const leftUpperArm = leftShoulder.clone().lerp(leftHand, 0.18);
+            const rightUpperArm = rightShoulder.clone().lerp(rightHand, 0.18);
+            const leftLowerArm = leftShoulder.clone().lerp(leftHand, 0.62);
+            const rightLowerArm = rightShoulder.clone().lerp(rightHand, 0.62);
+
+            const leftFoot = pointOr(stats.leftFoot, new THREE.Vector3(bounds.max.x * 0.54, minY + height * 0.04, center.z + size.z * 0.12));
+            const rightFoot = pointOr(stats.rightFoot, new THREE.Vector3(bounds.min.x * 0.54, minY + height * 0.04, center.z + size.z * 0.12));
+            const leftUpperLeg = hips.clone().lerp(leftFoot, 0.18);
+            const rightUpperLeg = hips.clone().lerp(rightFoot, 0.18);
+            const leftLowerLeg = hips.clone().lerp(leftFoot, 0.58);
+            const rightLowerLeg = hips.clone().lerp(rightFoot, 0.58);
+
+            const absolutePose = {
+                Hips: hips,
+                Spine: spine,
+                Neck: neck,
+                Head: head,
+                Left_Shoulder: leftShoulder,
+                Left_Upper_Arm: leftUpperArm,
+                Left_Lower_Arm: leftLowerArm,
+                Left_Hand: leftHand,
+                Right_Shoulder: rightShoulder,
+                Right_Upper_Arm: rightUpperArm,
+                Right_Lower_Arm: rightLowerArm,
+                Right_Hand: rightHand,
+                Left_Upper_Leg: leftUpperLeg,
+                Left_Lower_Leg: leftLowerLeg,
+                Left_Foot: leftFoot,
+                Right_Upper_Leg: rightUpperLeg,
+                Right_Lower_Leg: rightLowerLeg,
+                Right_Foot: rightFoot
+            };
+
+            return {
+                absolutePose,
+                localPose: createLocalRestPose(absolutePose),
+                skinSegments: createRestSkinSegments(absolutePose)
+            };
+        }
+
+        function collectModelRestStats(modelAsset, fitMatrix) {
+            const stats = {
+                bounds: new THREE.Box3(),
+                pelvis: createPointAccumulator(),
+                chest: createPointAccumulator(),
+                neck: createPointAccumulator(),
+                head: createPointAccumulator(),
+                leftShoulder: createPointAccumulator(),
+                rightShoulder: createPointAccumulator(),
+                leftHand: createPointAccumulator(),
+                rightHand: createPointAccumulator(),
+                leftFoot: createPointAccumulator(),
+                rightFoot: createPointAccumulator()
+            };
+            const vertex = new THREE.Vector3();
+            const colorValue = new THREE.Color();
+            const meshMatrix = new THREE.Matrix4();
+
+            modelAsset.object.updateWorldMatrix(true, true);
+            modelAsset.object.traverse(source => {
+                if (!source.isMesh || !source.geometry?.attributes?.position) return;
+
+                const position = source.geometry.getAttribute('position');
+                const color = source.geometry.getAttribute('color');
+                const step = Math.max(1, Math.ceil(position.count / 120000));
+                meshMatrix.multiplyMatrices(fitMatrix, source.matrixWorld);
+
+                for (let index = 0; index < position.count; index += step) {
+                    vertex.fromBufferAttribute(position, index).applyMatrix4(meshMatrix);
+                    stats.bounds.expandByPoint(vertex);
+                }
+
+                if (stats.bounds.isEmpty()) return;
+
+                const bounds = stats.bounds;
+                const size = bounds.getSize(new THREE.Vector3());
+                const center = bounds.getCenter(new THREE.Vector3());
+                const height = Math.max(size.y, 0.001);
+
+                for (let index = 0; index < position.count; index += step) {
+                    vertex.fromBufferAttribute(position, index).applyMatrix4(meshMatrix);
+                    const yNorm = (vertex.y - bounds.min.y) / height;
+                    const xSide = vertex.x >= center.x ? 1 : -1;
+                    let redDominant = false;
+                    let blueDominant = false;
+
+                    if (color) {
+                        colorValue.fromBufferAttribute(color, index);
+                        redDominant = colorValue.r > 0.26 && colorValue.r > colorValue.b * 1.22;
+                        blueDominant = colorValue.b > 0.24 && colorValue.b > colorValue.r * 1.14;
+                    }
+
+                    if (yNorm > 0.46 && yNorm < 0.62 && Math.abs(vertex.x - center.x) < size.x * 0.26) {
+                        stats.pelvis.add(vertex);
+                    }
+                    if (yNorm > 0.64 && yNorm < 0.78 && Math.abs(vertex.x - center.x) < size.x * 0.26) {
+                        stats.chest.add(vertex);
+                    }
+                    if (yNorm > 0.78 && yNorm < 0.89 && Math.abs(vertex.x - center.x) < size.x * 0.18) {
+                        stats.neck.add(vertex);
+                    }
+                    if (yNorm > 0.82 && Math.abs(vertex.x - center.x) < size.x * 0.28) {
+                        stats.head.add(vertex);
+                    }
+                    if (yNorm > 0.67 && yNorm < 0.86 && vertex.x > center.x + size.x * 0.16) {
+                        stats.leftShoulder.add(vertex);
+                    }
+                    if (yNorm > 0.67 && yNorm < 0.86 && vertex.x < center.x - size.x * 0.16) {
+                        stats.rightShoulder.add(vertex);
+                    }
+                    if (redDominant && yNorm > 0.28 && yNorm < 0.68 && xSide > 0 && vertex.x > center.x + size.x * 0.22) {
+                        stats.leftHand.add(vertex);
+                    }
+                    if (redDominant && yNorm > 0.28 && yNorm < 0.68 && xSide < 0 && vertex.x < center.x - size.x * 0.22) {
+                        stats.rightHand.add(vertex);
+                    }
+                    if ((redDominant || blueDominant) && yNorm < 0.22 && xSide > 0) {
+                        stats.leftFoot.add(vertex);
+                    }
+                    if ((redDominant || blueDominant) && yNorm < 0.22 && xSide < 0) {
+                        stats.rightFoot.add(vertex);
+                    }
+                }
+            });
+
+            return stats;
+        }
+
+        function createPointAccumulator() {
+            return {
+                sum: new THREE.Vector3(),
+                count: 0,
+                add(point) {
+                    this.sum.add(point);
+                    this.count += 1;
+                },
+                center() {
+                    return this.sum.clone().multiplyScalar(1 / Math.max(1, this.count));
+                }
+            };
+        }
+
+        function createLocalRestPose(absolutePose) {
+            const localPose = {};
+
+            JOINT_LAYOUT.forEach(joint => {
+                const absolute = absolutePose[joint.baseName];
+                const local = absolute.clone();
+                if (joint.parent && absolutePose[joint.parent]) {
+                    local.sub(absolutePose[joint.parent]);
+                }
+
+                localPose[joint.baseName] = {
+                    position: [local.x, local.y, local.z],
+                    quaternion: joint.quaternion.slice()
+                };
+            });
+
+            return localPose;
+        }
+
+        function createRestSkinSegments(absolutePose) {
+            const makeSegment = (bone, a, b, radius, region) => ({
+                bone,
+                a: absolutePose[a].clone(),
+                b: absolutePose[b].clone(),
+                radius,
+                region
+            });
+
+            return [
+                makeSegment('Hips', 'Right_Upper_Leg', 'Left_Upper_Leg', 0.62, 'core'),
+                makeSegment('Spine', 'Hips', 'Spine', 0.58, 'core'),
+                makeSegment('Neck', 'Spine', 'Neck', 0.34, 'neck'),
+                makeSegment('Head', 'Neck', 'Head', 0.48, 'head'),
+                makeSegment('Left_Shoulder', 'Spine', 'Left_Shoulder', 0.34, 'leftShoulder'),
+                makeSegment('Left_Upper_Arm', 'Left_Shoulder', 'Left_Lower_Arm', 0.36, 'leftArm'),
+                makeSegment('Left_Lower_Arm', 'Left_Lower_Arm', 'Left_Hand', 0.34, 'leftArm'),
+                makeSegment('Left_Hand', 'Left_Lower_Arm', 'Left_Hand', 0.42, 'leftHand'),
+                makeSegment('Right_Shoulder', 'Spine', 'Right_Shoulder', 0.34, 'rightShoulder'),
+                makeSegment('Right_Upper_Arm', 'Right_Shoulder', 'Right_Lower_Arm', 0.36, 'rightArm'),
+                makeSegment('Right_Lower_Arm', 'Right_Lower_Arm', 'Right_Hand', 0.34, 'rightArm'),
+                makeSegment('Right_Hand', 'Right_Lower_Arm', 'Right_Hand', 0.42, 'rightHand'),
+                makeSegment('Left_Upper_Leg', 'Left_Upper_Leg', 'Left_Lower_Leg', 0.4, 'leftLeg'),
+                makeSegment('Left_Lower_Leg', 'Left_Lower_Leg', 'Left_Foot', 0.34, 'leftLeg'),
+                makeSegment('Left_Foot', 'Left_Lower_Leg', 'Left_Foot', 0.36, 'leftFoot'),
+                makeSegment('Right_Upper_Leg', 'Right_Upper_Leg', 'Right_Lower_Leg', 0.4, 'rightLeg'),
+                makeSegment('Right_Lower_Leg', 'Right_Lower_Leg', 'Right_Foot', 0.34, 'rightLeg'),
+                makeSegment('Right_Foot', 'Right_Lower_Leg', 'Right_Foot', 0.36, 'rightFoot')
+            ];
+        }
+
+        function applyAutoSkinWeights(geometry, skinSegments = AUTO_SKIN_SEGMENTS) {
+            const position = geometry.getAttribute('position');
+            const color = geometry.getAttribute('color');
+            const skinIndices = new Uint16Array(position.count * 4);
+            const skinWeights = new Float32Array(position.count * 4);
+            const vertex = new THREE.Vector3();
+            const vertexColor = new THREE.Color();
+
+            for (let vertexIndex = 0; vertexIndex < position.count; vertexIndex += 1) {
+                vertex.fromBufferAttribute(position, vertexIndex);
+                if (color) {
+                    vertexColor.fromBufferAttribute(color, vertexIndex);
+                }
+                const influence = computeAutoModelInfluence(vertex, color ? vertexColor : null, skinSegments);
+                const offset = vertexIndex * 4;
+
+                for (let slot = 0; slot < 4; slot += 1) {
+                    skinIndices[offset + slot] = influence.indices[slot];
+                    skinWeights[offset + slot] = influence.weights[slot];
+                }
+            }
+
+            geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+            geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+        }
+
+        function computeAutoModelInfluence(vertex, vertexColor = null, skinSegments = AUTO_SKIN_SEGMENTS) {
+            const candidates = skinSegments.map(segment => {
+                const distance = distanceToSegment(vertex, segment.a, segment.b) / segment.radius;
+                const penalty = getAutoSkinRegionPenalty(vertex, segment, vertexColor);
+                const score = Math.max(0.02, distance + penalty);
+                return {
+                    index: getBoneIndex(segment.bone),
+                    weight: 1 / Math.pow(score, 4)
+                };
+            })
+                .sort((a, b) => b.weight - a.weight)
+                .slice(0, 4);
+
+            let total = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
+            if (!Number.isFinite(total) || total <= 0) {
+                return {
+                    indices: [getBoneIndex('Hips'), 0, 0, 0],
+                    weights: [1, 0, 0, 0]
+                };
+            }
+
+            while (candidates.length < 4) {
+                candidates.push({ index: candidates[0].index, weight: 0 });
+            }
+
+            total = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
+
+            return {
+                indices: candidates.map(candidate => candidate.index),
+                weights: candidates.map(candidate => candidate.weight / total)
+            };
+        }
+
+        function getAutoSkinRegionPenalty(vertex, segment, vertexColor = null) {
+            const x = vertex.x;
+            const y = vertex.y;
+            const absX = Math.abs(x);
+            const redDominant = !!vertexColor && vertexColor.r > 0.26 && vertexColor.r > vertexColor.b * 1.22;
+            const blueDominant = !!vertexColor && vertexColor.b > 0.24 && vertexColor.b > vertexColor.r * 1.14;
+            const midSuitRed = redDominant && y > 1.45 && y < 3.45;
+            const footRed = redDominant && y < 0.9;
+            const headRed = redDominant && y > 3.35;
+            let penalty = 0;
+
+            if (segment.region === 'head') {
+                if (y < 3.45) penalty += 1.65;
+                if (absX > 0.68) penalty += 0.55;
+                if (blueDominant) penalty += 1.2;
+                if (headRed) penalty -= 0.24;
+            } else if (segment.region === 'neck') {
+                if (y < 3.18 || y > 3.92) penalty += 1.0;
+                if (absX > 0.46) penalty += 0.7;
+                if (blueDominant) penalty += 0.45;
+            } else if (segment.region === 'core') {
+                if (y < 2.0 || y > 3.95) penalty += 0.72;
+                if (absX > 0.9) penalty += 0.72;
+                if (midSuitRed) penalty += 0.95;
+                if (blueDominant && y > 1.35 && y < 3.45) penalty -= 0.18;
+            } else if (segment.region === 'leftShoulder') {
+                if (x < -0.08) penalty += 1.0;
+                if (y < 3.08 || y > 3.95) penalty += 0.82;
+                if (midSuitRed) penalty -= 0.16;
+            } else if (segment.region === 'rightShoulder') {
+                if (x > 0.08) penalty += 1.0;
+                if (y < 3.08 || y > 3.95) penalty += 0.82;
+                if (midSuitRed) penalty -= 0.16;
+            } else if (segment.region === 'leftArm') {
+                if (x < -0.04) penalty += 1.25;
+                if (absX < 0.22 && !midSuitRed) penalty += 0.78;
+                if (y < 1.45 || y > 4.08) penalty += 0.9;
+                if (midSuitRed) penalty -= 0.22;
+                if (blueDominant) penalty += 0.9;
+            } else if (segment.region === 'rightArm') {
+                if (x > 0.04) penalty += 1.25;
+                if (absX < 0.22 && !midSuitRed) penalty += 0.78;
+                if (y < 1.45 || y > 4.08) penalty += 0.9;
+                if (midSuitRed) penalty -= 0.22;
+                if (blueDominant) penalty += 0.9;
+            } else if (segment.region === 'leftHand') {
+                if (x < -0.12) penalty += 0.95;
+                if (y < 1.35 || y > 3.1) penalty += 0.9;
+                if (midSuitRed) penalty -= 0.32;
+                if (blueDominant) penalty += 1.1;
+            } else if (segment.region === 'rightHand') {
+                if (x > 0.12) penalty += 0.95;
+                if (y < 1.35 || y > 3.1) penalty += 0.9;
+                if (midSuitRed) penalty -= 0.32;
+                if (blueDominant) penalty += 1.1;
+            } else if (segment.region === 'leftLeg') {
+                if (x < -0.08) penalty += 0.9;
+                if (y > 2.72) penalty += 1.35;
+                if (midSuitRed && y > 1.25) penalty += 0.8;
+                if (blueDominant && y < 2.55) penalty -= 0.16;
+            } else if (segment.region === 'rightLeg') {
+                if (x > 0.08) penalty += 0.9;
+                if (y > 2.72) penalty += 1.35;
+                if (midSuitRed && y > 1.25) penalty += 0.8;
+                if (blueDominant && y < 2.55) penalty -= 0.16;
+            } else if (segment.region === 'leftFoot') {
+                if (x < -0.08) penalty += 0.7;
+                if (y > 0.85) penalty += 1.4;
+                if (footRed) penalty -= 0.28;
+            } else if (segment.region === 'rightFoot') {
+                if (x > 0.08) penalty += 0.7;
+                if (y > 0.85) penalty += 1.4;
+                if (footRed) penalty -= 0.28;
+            }
+
+            return Math.max(0.02, penalty);
+        }
+
+        function distanceToSegment(point, start, end) {
+            tempSkinSegment.subVectors(end, start);
+            const lengthSq = tempSkinSegment.lengthSq();
+            if (lengthSq === 0) {
+                return point.distanceTo(start);
+            }
+
+            const t = THREE.MathUtils.clamp(tempSkinOffset.subVectors(point, start).dot(tempSkinSegment) / lengthSq, 0, 1);
+            tempSkinProjection.copy(start).addScaledVector(tempSkinSegment, t);
+            return point.distanceTo(tempSkinProjection);
+        }
+
+        function cloneModelMaterial(material, colorValue) {
+            if (Array.isArray(material)) {
+                return material.length > 0
+                    ? material.map(item => cloneModelMaterial(item, colorValue))
+                    : new THREE.MeshStandardMaterial({ color: new THREE.Color(colorValue), roughness: 0.5, metalness: 0.04 });
+            }
+
+            const clone = material?.clone
+                ? material.clone()
+                : new THREE.MeshStandardMaterial({ color: new THREE.Color(colorValue), roughness: 0.5, metalness: 0.04 });
+
+            if (clone.color && !clone.map && material?.type === 'MeshBasicMaterial') {
+                clone.color.lerp(new THREE.Color(colorValue), 0.18);
+            }
+
+            clone.wireframe = false;
+            clone.side = THREE.DoubleSide;
+            clone.needsUpdate = true;
+            return clone;
+        }
+
+        function sanitizeObjectName(value, fallback) {
+            return String(value || fallback).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || fallback;
+        }
+
+        function createBoneHierarchy(characterIndex, restPose = null) {
             const bonesByName = new Map();
             let rootBone = null;
 
             JOINT_LAYOUT.forEach(joint => {
                 const bone = new THREE.Bone();
+                const restJoint = restPose?.[joint.baseName];
                 bone.name = `${joint.baseName}_${characterIndex}`;
-                bone.position.fromArray(joint.position);
-                bone.quaternion.fromArray(joint.quaternion);
+                bone.position.fromArray(restJoint?.position || joint.position);
+                bone.quaternion.fromArray(restJoint?.quaternion || joint.quaternion);
                 bonesByName.set(bone.name, bone);
 
                 if (joint.parent) {
@@ -1146,21 +2157,50 @@
             };
         }
 
-        function buildAnimationClip(asset) {
+        function buildAnimationClip(asset, characters = []) {
             const durationScale = 1 / asset.playbackSpeed;
             const times = asset.keyframes.map(frame => frame.time * durationScale);
+            const firstFrame = asset.keyframes[0];
             const tracks = [];
 
             for (let characterIndex = 0; characterIndex < asset.scene.characterCount; characterIndex += 1) {
+                const restPose = characters[characterIndex]?.restPose || null;
                 JOINT_LAYOUT.forEach(joint => {
                     const jointName = `${joint.baseName}_${characterIndex}`;
                     const positions = [];
                     const quaternions = [];
+                    const restJoint = restPose?.[joint.baseName];
+                    const firstJoint = firstFrame.pose[jointName];
+                    const firstPosition = firstJoint?.position || joint.position;
+                    const referenceQuaternion = new THREE.Quaternion()
+                        .fromArray(restJoint ? joint.quaternion : (firstJoint?.quaternion || joint.quaternion))
+                        .normalize();
+                    const inverseReferenceQuaternion = referenceQuaternion.clone().invert();
 
                     asset.keyframes.forEach(frame => {
                         const jointState = frame.pose[jointName];
-                        positions.push(...jointState.position);
-                        quaternions.push(...jointState.quaternion);
+
+                        if (restJoint) {
+                            const restPosition = restJoint.position;
+                            if (joint.baseName === 'Hips') {
+                                positions.push(
+                                    restPosition[0] + jointState.position[0] - firstPosition[0],
+                                    restPosition[1] + jointState.position[1] - firstPosition[1],
+                                    restPosition[2] + jointState.position[2] - firstPosition[2]
+                                );
+                            } else {
+                                positions.push(...restPosition);
+                            }
+
+                            const deltaQuaternion = new THREE.Quaternion()
+                                .fromArray(jointState.quaternion)
+                                .normalize()
+                                .multiply(inverseReferenceQuaternion);
+                            quaternions.push(deltaQuaternion.x, deltaQuaternion.y, deltaQuaternion.z, deltaQuaternion.w);
+                        } else {
+                            positions.push(...jointState.position);
+                            quaternions.push(...jointState.quaternion);
+                        }
                     });
 
                     tracks.push(new THREE.VectorKeyframeTrack(`${jointName}.position`, times, positions));
@@ -1206,7 +2246,9 @@
 
         function applyPreviewVisibility() {
             state.characters.forEach(character => {
-                character.mesh.visible = ui.showMeshToggle.checked;
+                (character.meshes || [character.mesh]).forEach(mesh => {
+                    if (mesh) mesh.visible = ui.showMeshToggle.checked;
+                });
                 character.helper.visible = ui.showRigToggle.checked;
             });
         }
@@ -1263,8 +2305,9 @@
             ui.timeRange.value = String(enabled ? state.currentTime : 0);
             ui.playBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
             ui.timeChip.textContent = `${state.currentTime.toFixed(2)}s / ${(state.duration || 0).toFixed(2)}s`;
+            const modelName = state.currentModelAsset?.name || 'generated cube mesh';
             ui.viewportMeta.textContent = enabled
-                ? `${state.currentAsset.scene.characterCount} skinned character${state.currentAsset.scene.characterCount === 1 ? '' : 's'} loaded. Rig helpers render over the mesh for easier inspection.`
+                ? `${state.currentAsset.scene.characterCount} skinned character${state.currentAsset.scene.characterCount === 1 ? '' : 's'} loaded with ${modelName}. Rig helpers render over the mesh for easier inspection.`
                 : 'Orbit: mouse drag. Zoom: wheel. Rig helpers render over the mesh.';
         }
 
@@ -1272,6 +2315,7 @@
             if (!state.currentAsset) {
                 ui.statName.textContent = 'None loaded';
                 ui.statSource.textContent = '-';
+                ui.statModel.textContent = state.currentModelAsset?.name || 'Generated cubes';
                 ui.statCharacters.textContent = '0';
                 ui.statBones.textContent = '0';
                 ui.statKeyframes.textContent = '0';
@@ -1281,6 +2325,9 @@
 
             ui.statName.textContent = state.currentAsset.name;
             ui.statSource.textContent = state.currentSourceLabel;
+            ui.statModel.textContent = state.currentModelAsset
+                ? `${state.currentModelAsset.name} (${state.currentModelAsset.meshCount} mesh${state.currentModelAsset.meshCount === 1 ? '' : 'es'})`
+                : 'Generated cubes';
             ui.statCharacters.textContent = String(state.currentAsset.scene.characterCount);
             ui.statBones.textContent = String(JOINT_COUNT);
             ui.statKeyframes.textContent = String(state.currentAsset.keyframes.length);
@@ -1313,7 +2360,8 @@
             if (!state.exportRoot || !state.clip || !state.currentAsset) return;
 
             stopPlayback();
-            setStatus(`Exporting "${state.currentAsset.name}" as GLB...`);
+            const modelName = state.currentModelAsset?.name || 'generated cubes';
+            setStatus(`Exporting "${state.currentAsset.name}" with ${modelName} as GLB...`);
 
             try {
                 const exporter = new GLTFExporter();
@@ -1361,7 +2409,7 @@
 
                 const safeName = state.currentAsset.name.replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'rigged-animation';
                 downloadBlob(result, `${safeName}.glb`, 'model/gltf-binary');
-                setStatus(`Exported "${state.currentAsset.name}" as GLB with skinning and animation tracks ready for a game engine.`, 'success');
+                setStatus(`Exported "${state.currentAsset.name}" as GLB with the model, generated skeleton, skin weights, and animation tracks.`, 'success');
             } catch (error) {
                 console.error(error);
                 setStatus(error instanceof Error ? error.message : 'The GLB export failed.', 'error');

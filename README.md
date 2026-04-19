@@ -24,7 +24,7 @@ Animator gives you a quick way to do all of the following without leaving the br
 - Capture rough motion from a reference clip through Motion Ripper
 - Move animation clips from Motion Ripper back into the main editor
 - Test bundled or imported clips as playable runtime actions in Playground
-- Auto-build a simple skinned cube rig from an animation and export it as GLB through Auto Rig Scene
+- Auto-build a generated cube rig or auto-weighted imported 3D model from an animation and export it as GLB through Auto Rig Scene
 - Preserve character count, character colors, playback speed, and animation timing inside exported assets
 - Play back special animation metadata such as the included `arcane-summon` effect preset when present in an imported file
 
@@ -35,7 +35,7 @@ Animator gives you a quick way to do all of the following without leaving the br
 | `Index.html` | Main Fast Poser app for manual posing, scene staging, timeline editing, and asset library management |
 | `ripper.html` | Motion Ripper app for screen-share pose tracking and animation capture |
 | `Playground.html` | Runtime test arena for trying walk, action, interaction, and summon clips in a playable scene |
-| `AutoRigScene.html` | Auto Rig Scene app for building a simple skinned cube rig from a Fast Poser animation and exporting GLB |
+| `AutoRigScene.html` | Auto Rig Scene app for building a generated cube rig or auto-weighted imported 3D model from a Fast Poser animation and exporting GLB |
 | `Animations/` | Bundled sample animation JSON files you can import into Fast Poser, Playground, and Auto Rig Scene |
 | `Animations/*.animation.json` | Example clips such as walks, flips, kicks, two-character spear actions, and an effect-driven summon animation |
 
@@ -272,7 +272,7 @@ Playground is the runtime testing side of the repo. It turns the bundled Fast Po
 
 ## Auto Rig Features
 
-Auto Rig Scene is the export side of the repo. It takes Fast Poser-compatible animation JSON, builds a simple skinned cube character with generated bones and weights, previews the motion, and exports the result as a GLB file for game-engine or DCC experiments.
+Auto Rig Scene is the export side of the repo. It takes Fast Poser-compatible animation JSON, builds a simple generated rig or fits an imported 3D model to generated bones and weights, previews the motion, and exports the result as a GLB file for game-engine or DCC experiments.
 
 ### Rig Build And Export Features
 
@@ -281,23 +281,29 @@ Auto Rig Scene is the export side of the repo. It takes Fast Poser-compatible an
 | Bundled clip catalog | Lists sample animation files from `Animations/` | Open `AutoRigScene.html` |
 | Browser library loading | Reads clips saved by Fast Poser or Motion Ripper from `localStorage` | Use the same browser and origin as `Index.html` |
 | Import JSON | Adds a local `.animation.json` file to the rig builder | Click `Import JSON` and choose a file |
+| 3D model import | Loads OBJ, GLB, GLTF, or FBX character meshes for auto skinning | Click `Import Model` and choose the model file; include MTL, BIN, and texture files when the format references them |
+| 3D models folder source | Exposes the included Tripo OBJ from `3D models/` as a selectable mesh source | Choose `3D Models / Tripo OBJ` in the mesh source dropdown |
+| Import loading state | Shows a loading overlay before heavy model parsing and skinning starts | Import or select a model and wait for the overlay to clear |
 | Refresh List | Reloads bundled and browser-library animation sources | Click `Refresh List` |
 | Auto build on select | Builds the rig as soon as a catalog item is selected | Keep `Auto build on select` enabled |
-| Build Rig | Creates a simple skinned cube character from the selected clip | Select a clip and click `Build Rig` |
+| Build Rig | Creates a skinned character from generated cubes or the selected imported mesh | Select a clip and click `Build Rig` |
 | Weighted cube mesh | Generates segmented cube geometry with bone weights for limbs, spine, head, and hips | Happens automatically during rig build |
+| Auto-weighted model mesh | Fits imported upright character models to the Auto Rig skeleton, auto-aligns the model's horizontal axis so forward motion matches the model front, detects a model rest pose, and creates spatial skin weights, including neck, shoulder, hand, and foot bones | Choose or import a model before building the rig |
+| Rest-pose retargeting | Keeps imported meshes in their detected bind pose, preserves root-motion offsets, and applies authored limb rotations from the clip | Build a rig from an imported model and scrub or play the timeline |
 | Multi-character support | Builds one skinned character per character stored in the animation asset | Load a multi-character clip such as `spear.animation.json` |
-| Preview toggles | Shows or hides rig helper lines and cube mesh rendering | Use `Show rig lines` and `Show cubes` |
+| Preview toggles | Shows or hides rig helper lines and mesh rendering | Use `Show rig lines` and `Show mesh` |
 | Timeline playback | Plays, loops, and scrubs the generated animation clip | Use `Play`, `Loop clip`, and the timeline slider |
-| Rig stats | Reports clip name, source, character count, bones per character, keyframes, and duration | Read the `Rig Stats` panel |
-| Export GLB | Downloads the generated skinned rig and animation as a `.glb` file | Build a rig, then click `Export GLB` |
+| Rig stats | Reports clip name, animation source, model source, character count, bones per character, keyframes, and duration | Read the `Rig Stats` panel |
+| Export GLB | Downloads the generated skeleton, skinned mesh, and animation as a `.glb` file | Build a rig, then click `Export GLB` |
 
 ### Practical Auto Rig Workflow
 
 1. Open `AutoRigScene.html`.
-2. Choose a bundled, library, or imported animation clip.
-3. Click `Build Rig` if auto-build is not already enabled.
-4. Preview the mesh, rig lines, looping, and timeline scrub.
-5. Click `Export GLB` to download the skinned result.
+2. Choose generated cubes, the bundled Tripo OBJ, or import a local model.
+3. Choose a bundled, library, or imported animation clip.
+4. Click `Build Rig` if auto-build is not already enabled.
+5. Preview the mesh, rig lines, looping, and timeline scrub.
+6. Click `Export GLB` to download the skinned result.
 
 ## Included Sample Animations
 
@@ -425,13 +431,13 @@ At the moment, the runtime can play this effect when it is present in an importe
 
 This project is intentionally lightweight, and that shows up in a few important ways:
 
-- The rig is a simple blocky humanoid, not a skinned character mesh.
+- The generated fallback rig is a simple blocky humanoid; imported models use automatic spatial skin weights rather than authored deformation weights.
 - There is no backend or project file system beyond browser storage and exported JSON files.
 - The shared pose and animation libraries are browser-local, not synced across machines.
 - Motion Ripper tracks a single performer and records a single character per take.
 - Motion Ripper depends on screen sharing, WebGL, MediaPipe, and internet-loaded assets.
 - Playground is a runtime testbed, not a full game or behavior system.
-- Auto Rig Scene exports a generated cube-character rig, not a production-grade retargeted character mesh.
+- Auto Rig Scene exports generated skeletons, skin weights, imported meshes when selected, and animation tracks; it is still not a production-grade retargeting or deformation tool.
 - Fast Poser supports playback of imported effect metadata, but there is no full effect editor in the UI yet.
 - There is no formal build, test, or packaging pipeline in the repo right now.
 
