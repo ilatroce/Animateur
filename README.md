@@ -313,8 +313,11 @@ The `Animations/` folder is effectively a starter pack for trying the project.
 | --- | --- | --- |
 | `forwardflip.animation.json` | 1 | Single-character flip sample |
 | `forwardflip-realistic.animation.json` | 1 | Refined single-character flip sample |
+| `slash-realistic.animation.json` | 1 | Dynamic single-character sword slash with anticipation, impact, and recovery |
 | `spinningkick.animation.json` | 1 | Single-character kick sample |
 | `spinningkick-realistic.animation.json` | 1 | Refined kick sample |
+| `spinningslash.animation.json` | 1 | Single-character spinning blade slash with an attached weapon |
+| `spinningslash-overdrive.animation.json` | 1 | Copy of `spinningslash.animation.json` with `blade-storm` trails, sparks, shader glow, and a shockwave |
 | `walking-anim.animation.json` | 1 | Single-character walk sample |
 | `walking-realistic.animation.json` | 1 | Refined walk sample |
 | `spear.animation.json` | 2 | Two-character spear interaction sample |
@@ -416,7 +419,9 @@ The bundled `summoning-magic.animation.json` uses:
 }
 ```
 
-At the moment, the runtime can play this effect when it is present in an imported animation, but the current UI does not expose a dedicated authoring panel for creating or editing effects by hand.
+The bundled `spinningslash-overdrive.animation.json` also uses the `blade-storm` preset to render a weapon trail, glowing blade shader, spark particles, and a ground shockwave without changing the original movement keyframes.
+
+At the moment, the runtime can play these effects when they are present in an imported animation, but the current UI does not expose a dedicated authoring panel for creating or editing effects by hand.
 
 ## Technical Stack
 

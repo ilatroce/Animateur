@@ -83,6 +83,10 @@
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linejoin="round" stroke-width="2" d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 12l8-4.5M12 12v9M12 12L4 7.5"></path></svg>
                             <span class="leading-tight">Add cube</span>
                         </button>
+                        <button id="add-weapon-btn" class="col-span-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold py-1.5 px-2 rounded-lg transition-colors flex items-center justify-center gap-1 text-xs">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 20l11.5-11.5M13 3l8 8M12 4l8 8M7 17l-3 3"></path></svg>
+                            <span class="leading-tight">Add Weapon</span>
+                        </button>
                     </div>
                     
                     <div class="flex gap-1.5">
@@ -109,6 +113,39 @@
                                 <input id="cube-depth-input" type="number" min="0.1" max="40" step="0.1" value="1" class="w-full bg-white/10 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-white outline-none focus:border-cyan-300">
                             </label>
                         </div>
+                    </div>
+
+                    <div id="weapon-panel" class="hidden rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-2 space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <h2 class="text-xs font-semibold uppercase tracking-[0.15em] text-amber-200">Weapon</h2>
+                            <button id="delete-weapon-btn" class="bg-red-900/40 hover:bg-red-800/55 text-red-200 text-[10px] font-medium py-0.5 px-2 rounded-lg border border-red-900/40 transition-colors">Delete</button>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <label class="space-y-1 text-[10px] font-semibold text-gray-400">
+                                <span>W</span>
+                                <input id="weapon-width-input" type="number" min="0.05" max="40" step="0.05" value="0.15" class="w-full bg-white/10 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-white outline-none focus:border-amber-300">
+                            </label>
+                            <label class="space-y-1 text-[10px] font-semibold text-gray-400">
+                                <span>L</span>
+                                <input id="weapon-length-input" type="number" min="0.05" max="40" step="0.05" value="1.6" class="w-full bg-white/10 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-white outline-none focus:border-amber-300">
+                            </label>
+                            <label class="space-y-1 text-[10px] font-semibold text-gray-400">
+                                <span>D</span>
+                                <input id="weapon-depth-input" type="number" min="0.05" max="40" step="0.05" value="0.15" class="w-full bg-white/10 border border-white/10 rounded-lg px-1.5 py-1 text-xs text-white outline-none focus:border-amber-300">
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-[1fr_auto] gap-1.5">
+                            <select id="weapon-anchor-select" class="min-w-0 bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-amber-300"></select>
+                            <select id="weapon-anchor-point" class="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-amber-300">
+                                <option value="end">End</option>
+                                <option value="pivot">Pivot</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <button id="anchor-weapon-btn" class="bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium py-1 px-2 rounded-lg transition-colors">Anchor</button>
+                            <button id="deanchor-weapon-btn" class="bg-white/10 hover:bg-white/15 text-white text-xs font-medium py-1 px-2 rounded-lg border border-white/10 transition-colors">Deanchor</button>
+                        </div>
+                        <div id="weapon-anchor-label" class="text-[10px] text-amber-100/80 truncate">Free</div>
                     </div>
 
                     <div id="actor-size-panel" class="hidden rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] p-2 space-y-1.5">
@@ -268,10 +305,14 @@
         const interactables = []; 
         let characters = [];
         let referenceCubes = [];
+        let weapons = [];
         let selectedReferenceCube = null;
+        let selectedWeapon = null;
         let nextReferenceCubeId = 1;
+        let nextWeaponId = 1;
         let selectedMesh = null;
         let selectedJoint = null;
+        let lastSelectedJoint = null;
         let translationHandle = null;
         const pullDragState = {
             active: false,
@@ -290,6 +331,9 @@
         const tempParentWorldQuaternionInverse = new THREE.Quaternion();
         const tempWorldDeltaQuaternion = new THREE.Quaternion();
         const tempLocalDeltaQuaternion = new THREE.Quaternion();
+        const tempAnchorDirection = new THREE.Vector3();
+        const tempAnchorBaseDirection = new THREE.Vector3(0, 1, 0);
+        const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
         // Animation Variables
         const ui = {};
@@ -312,6 +356,10 @@
         const ASSET_VERSION = 1;
         const REFERENCE_CUBE_MIN_SIZE = 0.1;
         const REFERENCE_CUBE_MAX_SIZE = 40;
+        const WEAPON_MIN_SIZE = 0.05;
+        const WEAPON_MAX_SIZE = 40;
+        const WEAPON_DEFAULT_DIMENSIONS = { width: 0.16, length: 1.65, depth: 0.16 };
+        const WEAPON_DEFAULT_COLOR = '#d4d4d8';
         const STORAGE_KEYS = {
             pose: 'fast-poser:pose-library',
             animation: 'fast-poser:animation-library'
@@ -323,7 +371,22 @@
         let libraryStorageUnavailable = false;
         let activeAnimationEffects = null;
         let summonVfx = null;
+        let slashVfx = null;
         const effectAnchorPosition = new THREE.Vector3();
+        const slashBladeBase = new THREE.Vector3();
+        const slashBladeTip = new THREE.Vector3();
+        const slashBladeMid = new THREE.Vector3();
+        const slashBladeDirection = new THREE.Vector3();
+        const slashTrailTangent = new THREE.Vector3();
+        const slashTrailSide = new THREE.Vector3();
+        const slashTrailView = new THREE.Vector3();
+        const slashSparkSide = new THREE.Vector3();
+        const slashSparkLift = new THREE.Vector3();
+        const slashTempPoint = new THREE.Vector3();
+        const slashTempPrev = new THREE.Vector3();
+        const slashTempNext = new THREE.Vector3();
+        const slashBladeQuaternion = new THREE.Quaternion();
+        const slashFallbackAxis = new THREE.Vector3(1, 0, 0);
 
         // --- Initialization ---
         init();
@@ -378,6 +441,8 @@
 
             summonVfx = createSummonVfxRig();
             scene.add(summonVfx.group);
+            slashVfx = createBladeStormVfxRig();
+            scene.add(slashVfx.group);
 
             // Controls
             orbitControls = new OrbitControls( camera, renderer.domElement );
@@ -440,15 +505,23 @@
                 createReferenceCube();
             });
 
+            ui.addWeaponBtn.addEventListener('click', () => {
+                createWeapon();
+            });
+
             ui.clearBtn.addEventListener('click', () => {
                 clearSceneCharacters();
                 clearReferenceCubes();
+                clearWeapons();
                 clearKeyframes();
             });
 
             ui.modeRotateBtn.addEventListener('click', () => setMode('rotate'));
             ui.modeTranslateBtn.addEventListener('click', () => setMode('translate'));
             ui.deleteCubeBtn.addEventListener('click', deleteSelectedReferenceCube);
+            ui.deleteWeaponBtn.addEventListener('click', deleteSelectedWeapon);
+            ui.anchorWeaponBtn.addEventListener('click', anchorSelectedWeaponFromControls);
+            ui.deanchorWeaponBtn.addEventListener('click', deanchorSelectedWeapon);
             [
                 ui.cubeWidthInput,
                 ui.cubeHeightInput,
@@ -458,6 +531,17 @@
                 input.addEventListener('change', () => {
                     handleReferenceCubeDimensionInput();
                     syncReferenceCubeControls();
+                });
+            });
+            [
+                ui.weaponWidthInput,
+                ui.weaponLengthInput,
+                ui.weaponDepthInput
+            ].forEach(input => {
+                input.addEventListener('input', handleWeaponDimensionInput);
+                input.addEventListener('change', () => {
+                    handleWeaponDimensionInput();
+                    syncWeaponControls();
                 });
             });
             [
@@ -522,6 +606,8 @@
                 if (!isTyping && (event.key === 'Delete' || event.key === 'Backspace')) {
                     if (selectedReferenceCube) {
                         deleteSelectedReferenceCube();
+                    } else if (selectedWeapon) {
+                        deleteSelectedWeapon();
                     } else {
                         deleteSelectedKeyframe();
                     }
@@ -538,6 +624,7 @@
         function cacheUi() {
             ui.addBtn = document.getElementById('add-btn');
             ui.addCubeBtn = document.getElementById('add-cube-btn');
+            ui.addWeaponBtn = document.getElementById('add-weapon-btn');
             ui.clearBtn = document.getElementById('clear-btn');
             ui.modeRotateBtn = document.getElementById('mode-rotate');
             ui.modeTranslateBtn = document.getElementById('mode-translate');
@@ -546,6 +633,16 @@
             ui.cubeHeightInput = document.getElementById('cube-height-input');
             ui.cubeDepthInput = document.getElementById('cube-depth-input');
             ui.deleteCubeBtn = document.getElementById('delete-cube-btn');
+            ui.weaponPanel = document.getElementById('weapon-panel');
+            ui.weaponWidthInput = document.getElementById('weapon-width-input');
+            ui.weaponLengthInput = document.getElementById('weapon-length-input');
+            ui.weaponDepthInput = document.getElementById('weapon-depth-input');
+            ui.weaponAnchorSelect = document.getElementById('weapon-anchor-select');
+            ui.weaponAnchorPoint = document.getElementById('weapon-anchor-point');
+            ui.anchorWeaponBtn = document.getElementById('anchor-weapon-btn');
+            ui.deanchorWeaponBtn = document.getElementById('deanchor-weapon-btn');
+            ui.deleteWeaponBtn = document.getElementById('delete-weapon-btn');
+            ui.weaponAnchorLabel = document.getElementById('weapon-anchor-label');
             ui.actorSizePanel = document.getElementById('actor-size-panel');
             ui.actorSizeName = document.getElementById('actor-size-name');
             ui.actorWidthInput = document.getElementById('actor-width-input');
@@ -833,7 +930,8 @@
                 savedAt: new Date().toISOString(),
                 scene: {
                     characterCount: characters.length,
-                    characterColors: getCharacterColors()
+                    characterColors: getCharacterColors(),
+                    weapons: serializeSceneWeapons()
                 },
                 pose: serializePose(capturePose())
             };
@@ -848,7 +946,8 @@
                 savedAt: new Date().toISOString(),
                 scene: {
                     characterCount: characters.length,
-                    characterColors: getCharacterColors()
+                    characterColors: getCharacterColors(),
+                    weapons: serializeSceneWeapons()
                 },
                 playbackSpeed,
                 effects: serializeAnimationEffects(activeAnimationEffects),
@@ -945,14 +1044,16 @@
                     quaternion.normalize();
                 }
 
+                const clampScale = name.startsWith('weapon:') ? clampWeaponSize : clampReferenceCubeSize;
+
                 pose[name] = {
                     position: new THREE.Vector3(...positionValues),
                     quaternion,
                     scale: scaleValues
                         ? new THREE.Vector3(
-                            clampReferenceCubeSize(scaleValues[0]),
-                            clampReferenceCubeSize(scaleValues[1]),
-                            clampReferenceCubeSize(scaleValues[2])
+                            clampScale(scaleValues[0]),
+                            clampScale(scaleValues[1]),
+                            clampScale(scaleValues[2])
                         )
                         : null
                 };
@@ -1001,7 +1102,8 @@
             const cleanedName = String(data?.name || fallbackFileName || '').replace(/\.[^.]+$/, '').trim();
             const scene = {
                 characterCount: getAssetCharacterCount(data),
-                characterColors: normalizeCharacterColors(data?.scene?.characterColors ?? data?.characterColors)
+                characterColors: normalizeCharacterColors(data?.scene?.characterColors ?? data?.characterColors),
+                weapons: normalizeSerializedWeapons(data?.scene?.weapons ?? data?.weapons)
             };
 
             if (inferredType === 'pose') {
@@ -1064,6 +1166,72 @@
                 .filter(Boolean);
         }
 
+        function normalizeSerializedWeapons(values) {
+            const seenIds = new Set();
+
+            return (Array.isArray(values) ? values : [])
+                .map((weapon, index) => {
+                    const id = Math.max(1, Number.parseInt(weapon?.id, 10) || index + 1);
+                    if (seenIds.has(id)) return null;
+                    seenIds.add(id);
+
+                    const dimensions = normalizeWeaponDimensions(weapon?.dimensions ?? weapon);
+                    const transform = normalizeTransformPayload(weapon?.transform);
+                    const anchor = normalizeWeaponAnchor(weapon?.anchor);
+                    const color = normalizeColorValue(weapon?.color, WEAPON_DEFAULT_COLOR);
+
+                    return {
+                        id,
+                        name: String(weapon?.name || `Weapon_${id}`).trim() || `Weapon_${id}`,
+                        dimensions,
+                        transform,
+                        anchor,
+                        color
+                    };
+                })
+                .filter(Boolean);
+        }
+
+        function normalizeWeaponDimensions(source = {}) {
+            const width = Number.parseFloat(source.width);
+            const length = Number.parseFloat(source.length ?? source.height);
+            const depth = Number.parseFloat(source.depth);
+
+            return {
+                width: Number.isFinite(width) ? clampWeaponSize(width) : WEAPON_DEFAULT_DIMENSIONS.width,
+                length: Number.isFinite(length) ? clampWeaponSize(length) : WEAPON_DEFAULT_DIMENSIONS.length,
+                depth: Number.isFinite(depth) ? clampWeaponSize(depth) : WEAPON_DEFAULT_DIMENSIONS.depth
+            };
+        }
+
+        function normalizeTransformPayload(transform) {
+            const positionValues = Array.isArray(transform?.position) ? transform.position.slice(0, 3).map(Number) : null;
+            const quaternionValues = Array.isArray(transform?.quaternion) ? transform.quaternion.slice(0, 4).map(Number) : null;
+            const scaleValues = Array.isArray(transform?.scale) ? transform.scale.slice(0, 3).map(Number) : null;
+
+            if (!positionValues || !quaternionValues) return null;
+            if (positionValues.length !== 3 || quaternionValues.length !== 4) return null;
+            if (![...positionValues, ...quaternionValues].every(Number.isFinite)) return null;
+            if (scaleValues && (scaleValues.length !== 3 || !scaleValues.every(Number.isFinite))) return null;
+
+            return {
+                position: positionValues,
+                quaternion: quaternionValues,
+                scale: scaleValues
+            };
+        }
+
+        function normalizeWeaponAnchor(anchor) {
+            if (!anchor || typeof anchor.jointName !== 'string') return null;
+            const jointName = anchor.jointName.trim();
+            if (!jointName) return null;
+
+            return {
+                jointName,
+                point: anchor.point === 'pivot' ? 'pivot' : 'end'
+            };
+        }
+
         function normalizeColorValue(value, fallback) {
             try {
                 return `#${new THREE.Color(value || fallback).getHexString()}`;
@@ -1073,43 +1241,89 @@
         }
 
         function normalizeAnimationEffects(data) {
-            if (!data || data.preset !== 'arcane-summon') return null;
+            if (!data || typeof data.preset !== 'string') return null;
 
             const startTime = Math.max(0, Number.parseFloat(data.startTime) || 0);
             const peakTime = Math.max(startTime + 0.1, Number.parseFloat(data.peakTime) || startTime + 1.8);
             const endTime = Math.max(peakTime + 0.1, Number.parseFloat(data.endTime) || peakTime + 1.6);
 
-            return {
-                preset: 'arcane-summon',
-                targetCharacter: Math.max(0, Number.parseInt(data.targetCharacter, 10) || 0),
-                startTime: roundTime(startTime),
-                peakTime: roundTime(peakTime),
-                endTime: roundTime(endTime),
-                radius: THREE.MathUtils.clamp(Number.parseFloat(data.radius) || 3.2, 1.5, 6),
-                columnHeight: THREE.MathUtils.clamp(Number.parseFloat(data.columnHeight) || 6.2, 2.5, 10),
-                primaryColor: normalizeColorValue(data.primaryColor, '#63f3ff'),
-                secondaryColor: normalizeColorValue(data.secondaryColor, '#5b36ff'),
-                accentColor: normalizeColorValue(data.accentColor, '#ffd36b'),
-                glowColor: normalizeColorValue(data.glowColor, '#f0f9ff')
-            };
+            if (data.preset === 'arcane-summon') {
+                return {
+                    preset: 'arcane-summon',
+                    targetCharacter: Math.max(0, Number.parseInt(data.targetCharacter, 10) || 0),
+                    startTime: roundTime(startTime),
+                    peakTime: roundTime(peakTime),
+                    endTime: roundTime(endTime),
+                    radius: THREE.MathUtils.clamp(Number.parseFloat(data.radius) || 3.2, 1.5, 6),
+                    columnHeight: THREE.MathUtils.clamp(Number.parseFloat(data.columnHeight) || 6.2, 2.5, 10),
+                    primaryColor: normalizeColorValue(data.primaryColor, '#63f3ff'),
+                    secondaryColor: normalizeColorValue(data.secondaryColor, '#5b36ff'),
+                    accentColor: normalizeColorValue(data.accentColor, '#ffd36b'),
+                    glowColor: normalizeColorValue(data.glowColor, '#f0f9ff')
+                };
+            }
+
+            if (data.preset === 'blade-storm') {
+                return {
+                    preset: 'blade-storm',
+                    targetCharacter: Math.max(0, Number.parseInt(data.targetCharacter, 10) || 0),
+                    weaponId: Math.max(0, Number.parseInt(data.weaponId, 10) || 0),
+                    anchorJoint: String(data.anchorJoint || 'Right_Lower_Arm_0').trim() || 'Right_Lower_Arm_0',
+                    startTime: roundTime(startTime),
+                    peakTime: roundTime(peakTime),
+                    endTime: roundTime(endTime),
+                    bladeLength: THREE.MathUtils.clamp(Number.parseFloat(data.bladeLength) || 2.8, 0.8, 5.5),
+                    trailLength: THREE.MathUtils.clamp(Number.parseInt(data.trailLength, 10) || 24, 8, 48),
+                    trailWidth: THREE.MathUtils.clamp(Number.parseFloat(data.trailWidth) || 0.52, 0.16, 1.35),
+                    shockwaveRadius: THREE.MathUtils.clamp(Number.parseFloat(data.shockwaveRadius) || 3.4, 1.2, 6.5),
+                    sparkCount: THREE.MathUtils.clamp(Number.parseInt(data.sparkCount, 10) || 96, 24, 180),
+                    primaryColor: normalizeColorValue(data.primaryColor, '#67f8ff'),
+                    secondaryColor: normalizeColorValue(data.secondaryColor, '#8b5cff'),
+                    accentColor: normalizeColorValue(data.accentColor, '#fff06a'),
+                    glowColor: normalizeColorValue(data.glowColor, '#f7fbff')
+                };
+            }
+
+            return null;
         }
 
         function serializeAnimationEffects(effect) {
             if (!effect) return undefined;
 
-            return {
+            const common = {
                 preset: effect.preset,
                 targetCharacter: effect.targetCharacter,
                 startTime: roundTime(effect.startTime),
                 peakTime: roundTime(effect.peakTime),
                 endTime: roundTime(effect.endTime),
-                radius: Number(effect.radius.toFixed(2)),
-                columnHeight: Number(effect.columnHeight.toFixed(2)),
                 primaryColor: effect.primaryColor,
                 secondaryColor: effect.secondaryColor,
                 accentColor: effect.accentColor,
                 glowColor: effect.glowColor
             };
+
+            if (effect.preset === 'arcane-summon') {
+                return {
+                    ...common,
+                    radius: Number(effect.radius.toFixed(2)),
+                    columnHeight: Number(effect.columnHeight.toFixed(2))
+                };
+            }
+
+            if (effect.preset === 'blade-storm') {
+                return {
+                    ...common,
+                    weaponId: effect.weaponId,
+                    anchorJoint: effect.anchorJoint,
+                    bladeLength: Number(effect.bladeLength.toFixed(2)),
+                    trailLength: effect.trailLength,
+                    trailWidth: Number(effect.trailWidth.toFixed(2)),
+                    shockwaveRadius: Number(effect.shockwaveRadius.toFixed(2)),
+                    sparkCount: effect.sparkCount
+                };
+            }
+
+            return common;
         }
 
         function smoothProgress(edge0, edge1, value) {
@@ -1415,28 +1629,327 @@
             };
         }
 
+        function createBladeTrailGeometry(maxTrailPoints) {
+            const geometry = new THREE.BufferGeometry();
+            const vertexCount = maxTrailPoints * 2;
+            const positions = new Float32Array(vertexCount * 3);
+            const trailProgress = new Float32Array(vertexCount);
+            const trailEdge = new Float32Array(vertexCount);
+            const indices = [];
+
+            for (let index = 0; index < maxTrailPoints; index += 1) {
+                const progress = maxTrailPoints <= 1 ? 0 : index / (maxTrailPoints - 1);
+                const left = index * 2;
+                const right = left + 1;
+                trailProgress[left] = progress;
+                trailProgress[right] = progress;
+                trailEdge[left] = -1;
+                trailEdge[right] = 1;
+
+                if (index < maxTrailPoints - 1) {
+                    const nextLeft = left + 2;
+                    const nextRight = left + 3;
+                    indices.push(left, right, nextLeft, right, nextRight, nextLeft);
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('aTrail', new THREE.BufferAttribute(trailProgress, 1));
+            geometry.setAttribute('aEdge', new THREE.BufferAttribute(trailEdge, 1));
+            geometry.setIndex(indices);
+            geometry.setDrawRange(0, 0);
+            return geometry;
+        }
+
+        function createBladeTrailMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uSecondary: { value: new THREE.Color('#8b5cff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    attribute float aTrail;
+                    attribute float aEdge;
+                    varying float vTrail;
+                    varying float vEdge;
+
+                    void main() {
+                        vTrail = aTrail;
+                        vEdge = aEdge;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vTrail;
+                    varying float vEdge;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uSecondary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        float fade = pow(max(0.0, 1.0 - vTrail), 1.35);
+                        float center = 1.0 - smoothstep(0.08, 1.0, abs(vEdge));
+                        float rim = smoothstep(0.35, 0.95, abs(vEdge));
+                        float pulse = 0.72 + 0.28 * sin(uTime * 12.0 - vTrail * 24.0);
+                        float shard = pow(max(0.0, sin((1.0 - vTrail) * 34.0 + uTime * 18.0)), 5.0);
+                        float alpha = (center * 0.48 + rim * 0.24 + shard * 0.3) * fade * pulse * uIntensity;
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = mix(uSecondary, uPrimary, center);
+                        color += uAccent * (rim * 0.55 + shard * 0.7);
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeCoreMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec2 vUv;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        float center = 1.0 - abs(vUv.x - 0.5) * 2.0;
+                        float body = pow(max(center, 0.0), 0.7);
+                        float hotEdge = pow(max(0.0, sin(vUv.y * 24.0 - uTime * 16.0)), 8.0);
+                        float taper = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.86, 1.0, vUv.y));
+                        float alpha = (body * 0.75 + hotEdge * 0.45) * taper * uIntensity;
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = uPrimary * (0.9 + body * 0.7) + uAccent * hotEdge;
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeShockwaveMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uProgress: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uSecondary: { value: new THREE.Color('#8b5cff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec2 vUv;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform float uProgress;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uSecondary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        vec2 centered = vUv - 0.5;
+                        float dist = length(centered) * 2.0;
+                        float angle = atan(centered.y, centered.x);
+                        float ringRadius = 0.18 + uProgress * 0.68;
+                        float ring = 1.0 - smoothstep(0.025, 0.095, abs(dist - ringRadius));
+                        float inner = 1.0 - smoothstep(0.0, ringRadius, dist);
+                        float spokes = pow(max(0.0, sin(angle * 12.0 - uTime * 9.0)), 7.0) * (1.0 - smoothstep(0.1, 0.92, dist));
+                        float alpha = (ring * 0.82 + inner * 0.05 + spokes * 0.22) * (1.0 - uProgress * 0.58) * uIntensity;
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = mix(uSecondary, uPrimary, ring);
+                        color += uAccent * (spokes * 0.55 + ring * 0.25);
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeSparkMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    attribute float aSeed;
+                    varying float vSeed;
+                    uniform float uIntensity;
+
+                    void main() {
+                        vSeed = aSeed;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        float size = (10.0 + 24.0 * aSeed) * uIntensity;
+                        gl_PointSize = max(0.0, size * (260.0 / -mvPosition.z));
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    varying float vSeed;
+                    uniform float uIntensity;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        vec2 centered = gl_PointCoord - 0.5;
+                        float dist = length(centered) * 2.0;
+                        float glow = pow(max(0.0, 1.0 - dist), 2.8);
+                        float alpha = glow * uIntensity * (0.35 + vSeed * 0.65);
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = mix(uAccent, uPrimary, vSeed);
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeStormVfxRig() {
+            const group = new THREE.Group();
+            group.name = 'BladeStormFx';
+            group.visible = false;
+
+            const maxTrailPoints = 48;
+            const trail = new THREE.Mesh(createBladeTrailGeometry(maxTrailPoints), createBladeTrailMaterial());
+            trail.frustumCulled = false;
+            trail.renderOrder = 12;
+            group.add(trail);
+
+            const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.11, 1, 18, 1, true), createBladeCoreMaterial());
+            blade.frustumCulled = false;
+            blade.renderOrder = 14;
+            group.add(blade);
+
+            const shockwave = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 96, 96), createBladeShockwaveMaterial());
+            shockwave.rotation.x = -Math.PI / 2;
+            shockwave.position.y = 0.08;
+            shockwave.renderOrder = 10;
+            group.add(shockwave);
+
+            const sparkCount = 180;
+            const sparkGeometry = new THREE.BufferGeometry();
+            const sparkPositions = new Float32Array(sparkCount * 3);
+            const sparkSeeds = new Float32Array(sparkCount);
+            const sparkSwirls = new Float32Array(sparkCount);
+
+            for (let index = 0; index < sparkCount; index += 1) {
+                sparkSeeds[index] = Math.random();
+                sparkSwirls[index] = Math.random() * Math.PI * 2;
+            }
+
+            sparkGeometry.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+            sparkGeometry.setAttribute('aSeed', new THREE.BufferAttribute(sparkSeeds, 1));
+            sparkGeometry.setDrawRange(0, 0);
+
+            const particles = new THREE.Points(sparkGeometry, createBladeSparkMaterial());
+            particles.frustumCulled = false;
+            particles.renderOrder = 15;
+            group.add(particles);
+
+            const light = new THREE.PointLight(0xf7fbff, 0, 12, 1.8);
+            group.add(light);
+
+            return {
+                group,
+                trail,
+                blade,
+                shockwave,
+                particles,
+                light,
+                time: 0,
+                history: [],
+                lastClipTime: null,
+                maxTrailPoints,
+                sparkCount,
+                sparkPositions,
+                sparkSeeds,
+                sparkSwirls
+            };
+        }
+
         function setAnimationEffects(effectData) {
             activeAnimationEffects = normalizeAnimationEffects(effectData);
 
-            if (!summonVfx) return;
-
             if (!activeAnimationEffects) {
-                summonVfx.group.visible = false;
-                summonVfx.light.intensity = 0;
+                hideSummonVfx();
+                hideBladeStormVfx();
                 return;
             }
 
-            const primary = new THREE.Color(activeAnimationEffects.primaryColor);
-            const secondary = new THREE.Color(activeAnimationEffects.secondaryColor);
-            const accent = new THREE.Color(activeAnimationEffects.accentColor);
-            const glow = new THREE.Color(activeAnimationEffects.glowColor);
+            if (activeAnimationEffects.preset === 'arcane-summon') {
+                hideBladeStormVfx();
+                setSummonVfxColors(activeAnimationEffects);
+            } else if (activeAnimationEffects.preset === 'blade-storm') {
+                hideSummonVfx();
+                setBladeStormVfxColors(activeAnimationEffects);
+                if (slashVfx) {
+                    slashVfx.history.length = 0;
+                    slashVfx.lastClipTime = null;
+                }
+            }
+
+            applyAnimationEffectsState(currentTime);
+        }
+
+        function setSummonVfxColors(effect) {
+            if (!summonVfx) return;
+
+            const primary = new THREE.Color(effect.primaryColor);
+            const secondary = new THREE.Color(effect.secondaryColor);
+            const accent = new THREE.Color(effect.accentColor);
+            const glow = new THREE.Color(effect.glowColor);
 
             [summonVfx.circle.material, summonVfx.outerCircle.material, summonVfx.beam.material].forEach(material => {
                 material.uniforms.uPrimary.value.copy(primary);
                 material.uniforms.uAccent.value.copy(accent);
-            });
-
-            [summonVfx.circle.material, summonVfx.outerCircle.material, summonVfx.beam.material].forEach(material => {
                 if (material.uniforms.uSecondary) {
                     material.uniforms.uSecondary.value.copy(secondary);
                 }
@@ -1447,29 +1960,78 @@
             summonVfx.particles.material.uniforms.uPrimary.value.copy(primary);
             summonVfx.particles.material.uniforms.uAccent.value.copy(accent);
             summonVfx.light.color.copy(glow);
+        }
 
-            applyAnimationEffectsState(currentTime);
+        function setBladeStormVfxColors(effect) {
+            if (!slashVfx) return;
+
+            const primary = new THREE.Color(effect.primaryColor);
+            const secondary = new THREE.Color(effect.secondaryColor);
+            const accent = new THREE.Color(effect.accentColor);
+            const glow = new THREE.Color(effect.glowColor);
+
+            [slashVfx.trail.material, slashVfx.shockwave.material].forEach(material => {
+                material.uniforms.uPrimary.value.copy(primary);
+                material.uniforms.uSecondary.value.copy(secondary);
+                material.uniforms.uAccent.value.copy(accent);
+            });
+
+            slashVfx.blade.material.uniforms.uPrimary.value.copy(primary);
+            slashVfx.blade.material.uniforms.uAccent.value.copy(accent);
+            slashVfx.particles.material.uniforms.uPrimary.value.copy(primary);
+            slashVfx.particles.material.uniforms.uAccent.value.copy(accent);
+            slashVfx.light.color.copy(glow);
+        }
+
+        function hideSummonVfx() {
+            if (!summonVfx) return;
+            summonVfx.group.visible = false;
+            summonVfx.light.intensity = 0;
+        }
+
+        function hideBladeStormVfx() {
+            if (!slashVfx) return;
+            slashVfx.group.visible = false;
+            slashVfx.light.intensity = 0;
+            slashVfx.trail.geometry.setDrawRange(0, 0);
+            slashVfx.particles.geometry.setDrawRange(0, 0);
         }
 
         function applyAnimationEffectsState(time) {
-            if (!summonVfx) return;
-
             const effect = activeAnimationEffects;
             const targetCharacter = effect ? characters[effect.targetCharacter] : null;
 
             if (!effect || !targetCharacter) {
-                summonVfx.group.visible = false;
-                summonVfx.light.intensity = 0;
+                hideSummonVfx();
+                hideBladeStormVfx();
                 return;
             }
+
+            if (effect.preset === 'arcane-summon') {
+                hideBladeStormVfx();
+                updateSummonEffect(effect, targetCharacter, time);
+                return;
+            }
+
+            if (effect.preset === 'blade-storm') {
+                hideSummonVfx();
+                updateBladeStormEffect(effect, targetCharacter, time);
+                return;
+            }
+
+            hideSummonVfx();
+            hideBladeStormVfx();
+        }
+
+        function updateSummonEffect(effect, targetCharacter, time) {
+            if (!summonVfx) return;
 
             const charge = smoothProgress(effect.startTime, effect.peakTime, time);
             const decay = 1 - smoothProgress(effect.peakTime, effect.endTime, time);
             const envelope = THREE.MathUtils.clamp(charge * decay, 0, 1);
 
             if (envelope <= 0.001) {
-                summonVfx.group.visible = false;
-                summonVfx.light.intensity = 0;
+                hideSummonVfx();
                 return;
             }
 
@@ -1514,9 +2076,188 @@
             summonVfx.light.intensity = envelope * 5.4;
         }
 
+        function getBladeStormEndpoints(effect) {
+            const weapon = effect.weaponId
+                ? weapons.find(item => Number(item.userData.weaponId) === effect.weaponId)
+                : weapons[0];
+
+            if (weapon) {
+                weapon.updateMatrixWorld(true);
+                slashBladeBase.set(0, 0, 0);
+                weapon.localToWorld(slashBladeBase);
+                slashBladeTip.set(0, 1, 0);
+                weapon.localToWorld(slashBladeTip);
+                return slashBladeBase.distanceToSquared(slashBladeTip) > 0.0001;
+            }
+
+            const joint = findJointByName(effect.anchorJoint) || findJointByName(`Right_Lower_Arm_${effect.targetCharacter}`);
+            if (!joint) return false;
+
+            joint.updateMatrixWorld(true);
+            const localEnd = getJointAnchorLocalPosition(joint, 'end');
+            slashBladeBase.copy(localEnd);
+            joint.localToWorld(slashBladeBase);
+
+            slashTempPoint.copy(localEnd);
+            if (slashTempPoint.lengthSq() < 0.0001) {
+                slashTempPoint.set(0, -1, 0);
+            } else {
+                slashTempPoint.normalize();
+            }
+            slashTempPoint.multiplyScalar(effect.bladeLength).add(localEnd);
+            slashBladeTip.copy(slashTempPoint);
+            joint.localToWorld(slashBladeTip);
+            return slashBladeBase.distanceToSquared(slashBladeTip) > 0.0001;
+        }
+
+        function updateBladeStormEffect(effect, targetCharacter, time) {
+            if (!slashVfx) return;
+
+            const charge = smoothProgress(effect.startTime, effect.peakTime, time);
+            const decay = 1 - smoothProgress(effect.peakTime, effect.endTime, time);
+            const envelope = THREE.MathUtils.clamp(charge * decay, 0, 1);
+
+            if (envelope <= 0.001 || !getBladeStormEndpoints(effect)) {
+                hideBladeStormVfx();
+                return;
+            }
+
+            if (slashVfx.lastClipTime !== null && time < slashVfx.lastClipTime - 0.035) {
+                slashVfx.history.length = 0;
+            }
+            slashVfx.lastClipTime = time;
+
+            const activePoints = Math.min(effect.trailLength, slashVfx.maxTrailPoints);
+            slashVfx.history.unshift(slashBladeTip.clone());
+            while (slashVfx.history.length < activePoints) {
+                slashVfx.history.push(slashBladeTip.clone());
+            }
+            while (slashVfx.history.length > activePoints) {
+                slashVfx.history.pop();
+            }
+
+            slashBladeDirection.copy(slashBladeTip).sub(slashBladeBase);
+            const bladeLength = Math.max(0.001, slashBladeDirection.length());
+            slashBladeDirection.divideScalar(bladeLength);
+            slashBladeMid.copy(slashBladeBase).lerp(slashBladeTip, 0.5);
+
+            slashVfx.group.visible = true;
+            updateBladeStormTrail(effect, activePoints, envelope);
+            updateBladeStormBlade(effect, bladeLength, envelope);
+            updateBladeStormShockwave(effect, targetCharacter, time, envelope);
+            updateBladeStormParticles(effect, bladeLength, envelope);
+
+            slashVfx.light.position.copy(slashBladeTip);
+            slashVfx.light.distance = effect.shockwaveRadius * 1.8;
+            slashVfx.light.intensity = envelope * 0.9;
+        }
+
+        function updateBladeStormTrail(effect, activePoints, envelope) {
+            const geometry = slashVfx.trail.geometry;
+            const positions = geometry.attributes.position.array;
+
+            for (let index = 0; index < activePoints; index += 1) {
+                const point = slashVfx.history[Math.min(index, slashVfx.history.length - 1)] || slashBladeTip;
+                const prev = slashVfx.history[Math.max(0, index - 1)] || point;
+                const next = slashVfx.history[Math.min(slashVfx.history.length - 1, index + 1)] || point;
+
+                slashTempPoint.copy(point);
+                slashTempPrev.copy(prev);
+                slashTempNext.copy(next);
+                slashTrailTangent.copy(slashTempPrev).sub(slashTempNext);
+                if (slashTrailTangent.lengthSq() < 0.0001) {
+                    slashTrailTangent.copy(slashBladeDirection);
+                } else {
+                    slashTrailTangent.normalize();
+                }
+
+                slashTrailView.copy(camera.position).sub(slashTempPoint);
+                slashTrailSide.crossVectors(slashTrailTangent, slashTrailView);
+                if (slashTrailSide.lengthSq() < 0.0001) {
+                    slashTrailSide.crossVectors(slashTrailTangent, WORLD_UP);
+                }
+                if (slashTrailSide.lengthSq() < 0.0001) {
+                    slashTrailSide.crossVectors(slashTrailTangent, slashFallbackAxis);
+                }
+                slashTrailSide.normalize();
+
+                const progress = activePoints <= 1 ? 0 : index / (activePoints - 1);
+                const width = effect.trailWidth * Math.pow(1 - progress, 0.62) * (0.55 + envelope * 0.85);
+                const leftOffset = (index * 2) * 3;
+                const rightOffset = leftOffset + 3;
+
+                positions[leftOffset] = slashTempPoint.x + slashTrailSide.x * width;
+                positions[leftOffset + 1] = slashTempPoint.y + slashTrailSide.y * width;
+                positions[leftOffset + 2] = slashTempPoint.z + slashTrailSide.z * width;
+                positions[rightOffset] = slashTempPoint.x - slashTrailSide.x * width;
+                positions[rightOffset + 1] = slashTempPoint.y - slashTrailSide.y * width;
+                positions[rightOffset + 2] = slashTempPoint.z - slashTrailSide.z * width;
+            }
+
+            geometry.setDrawRange(0, Math.max(0, (activePoints - 1) * 6));
+            geometry.attributes.position.needsUpdate = true;
+            slashVfx.trail.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.trail.material.uniforms.uIntensity.value = envelope * 0.82;
+        }
+
+        function updateBladeStormBlade(effect, bladeLength, envelope) {
+            slashBladeQuaternion.setFromUnitVectors(WORLD_UP, slashBladeDirection);
+            slashVfx.blade.position.copy(slashBladeMid);
+            slashVfx.blade.quaternion.copy(slashBladeQuaternion);
+            slashVfx.blade.scale.set(1 + effect.trailWidth * 0.8, bladeLength, 1 + effect.trailWidth * 0.8);
+            slashVfx.blade.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.blade.material.uniforms.uIntensity.value = envelope * 0.95;
+        }
+
+        function updateBladeStormShockwave(effect, targetCharacter, time, envelope) {
+            const progress = smoothProgress(effect.startTime, effect.endTime, time);
+            const scale = effect.shockwaveRadius * (1.25 + Math.sin(progress * Math.PI) * 0.35);
+            slashVfx.shockwave.position.set(targetCharacter.position.x, 0.08, targetCharacter.position.z);
+            slashVfx.shockwave.scale.set(scale, scale, 1);
+            slashVfx.shockwave.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.shockwave.material.uniforms.uProgress.value = progress;
+            slashVfx.shockwave.material.uniforms.uIntensity.value = envelope * 0.46;
+        }
+
+        function updateBladeStormParticles(effect, bladeLength, envelope) {
+            const geometry = slashVfx.particles.geometry;
+            const positions = slashVfx.sparkPositions;
+            const count = Math.min(effect.sparkCount, slashVfx.sparkCount);
+
+            slashSparkSide.crossVectors(slashBladeDirection, WORLD_UP);
+            if (slashSparkSide.lengthSq() < 0.0001) {
+                slashSparkSide.crossVectors(slashBladeDirection, slashFallbackAxis);
+            }
+            slashSparkSide.normalize();
+            slashSparkLift.crossVectors(slashSparkSide, slashBladeDirection).normalize();
+
+            for (let index = 0; index < count; index += 1) {
+                const seed = slashVfx.sparkSeeds[index];
+                const phase = (slashVfx.time * (0.7 + seed * 1.8) + seed * 9.7) % 1;
+                const orbit = slashVfx.sparkSwirls[index] + slashVfx.time * (3.8 + seed * 6.5);
+                const spread = effect.trailWidth * (0.25 + seed * 1.15) * (1.15 - phase);
+                const backstep = bladeLength * (0.12 + phase * 0.82) * (0.35 + seed * 0.65);
+
+                slashTempPoint.copy(slashBladeTip)
+                    .addScaledVector(slashBladeDirection, -backstep)
+                    .addScaledVector(slashSparkSide, Math.cos(orbit) * spread)
+                    .addScaledVector(slashSparkLift, Math.sin(orbit) * spread + phase * 0.42);
+
+                const offset = index * 3;
+                positions[offset] = slashTempPoint.x;
+                positions[offset + 1] = slashTempPoint.y;
+                positions[offset + 2] = slashTempPoint.z;
+            }
+
+            geometry.setDrawRange(0, count);
+            geometry.attributes.position.needsUpdate = true;
+            slashVfx.particles.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.particles.material.uniforms.uIntensity.value = envelope;
+        }
+
         function updateAnimationEffects(delta) {
-            if (!summonVfx) return;
-            summonVfx.time += delta;
+            if (summonVfx) summonVfx.time += delta;
+            if (slashVfx) slashVfx.time += delta;
             applyAnimationEffectsState(currentTime);
         }
 
@@ -1529,15 +2270,14 @@
                 for (let index = 0; index < requiredCount; index += 1) {
                     createCharacter({ color: colors[index] });
                 }
-                return;
-            }
-
-            if (colors.length > 0) {
+            } else if (colors.length > 0) {
                 characters.forEach((character, index) => {
                     if (!colors[index]) return;
                     setCharacterColor(character, colors[index]);
                 });
             }
+
+            syncWeaponsToAsset(asset);
         }
 
         function getCharacterColors() {
@@ -1561,6 +2301,13 @@
         function handleTransformObjectChange() {
             if (selectedReferenceCube) return;
 
+            if (selectedWeapon) {
+                syncWeaponDimensionsFromScale(selectedWeapon);
+                syncWeaponControls();
+                handlePoseEdited();
+                return;
+            }
+
             applyPullTranslation();
             handlePoseEdited();
         }
@@ -1582,7 +2329,7 @@
             const pose = {};
             characters.forEach(charRoot => {
                 charRoot.traverse(obj => {
-                    if (obj.isGroup && obj.name && obj.name.includes('_')) {
+                    if (obj.isGroup && obj.userData.isJoint) {
                         pose[obj.name] = {
                             position: obj.position.clone(),
                             quaternion: obj.quaternion.clone(),
@@ -1590,6 +2337,13 @@
                         };
                     }
                 });
+            });
+            weapons.forEach(weapon => {
+                pose[getWeaponPoseKey(weapon)] = {
+                    position: weapon.position.clone(),
+                    quaternion: weapon.quaternion.clone(),
+                    scale: weapon.scale.clone()
+                };
             });
             return pose;
         }
@@ -1599,7 +2353,7 @@
 
             characters.forEach(charRoot => {
                 charRoot.traverse(obj => {
-                    if (!obj.isGroup || !obj.name || !pose[obj.name]) return;
+                    if (!obj.isGroup || !obj.userData.isJoint || !pose[obj.name]) return;
                     obj.position.copy(pose[obj.name].position);
                     obj.quaternion.copy(pose[obj.name].quaternion);
                     if (pose[obj.name].scale) {
@@ -1608,8 +2362,21 @@
                 });
             });
 
+            weapons.forEach(weapon => {
+                const transform = pose[getWeaponPoseKey(weapon)];
+                if (!transform) return;
+
+                weapon.position.copy(transform.position);
+                weapon.quaternion.copy(transform.quaternion);
+                if (transform.scale) {
+                    weapon.scale.copy(transform.scale);
+                    syncWeaponDimensionsFromScale(weapon);
+                }
+            });
+
             syncTransformAttachment();
             syncActorDimensionControls();
+            syncWeaponControls();
         }
 
         function getCurrentTransformMode() {
@@ -1693,6 +2460,13 @@
             if (selectedReferenceCube) {
                 if (transformControl.object !== selectedReferenceCube) {
                     transformControl.attach(selectedReferenceCube);
+                }
+                return;
+            }
+
+            if (selectedWeapon) {
+                if (transformControl.object !== selectedWeapon) {
+                    transformControl.attach(selectedWeapon);
                 }
                 return;
             }
@@ -2180,6 +2954,11 @@
                 return;
             }
 
+            if (mesh.userData.weapon) {
+                selectWeapon(mesh.userData.weapon);
+                return;
+            }
+
             if (mesh.userData.joint) {
                 selectJoint(mesh);
             }
@@ -2197,11 +2976,13 @@
             selectedMesh = cube.userData.mesh;
             selectedJoint = null;
             selectedReferenceCube = cube;
+            selectedWeapon = null;
             resetPullDragState();
             setSelectedMeshEmissive(selectedMesh, 0x164e63);
 
             syncTransformAttachment();
             syncReferenceCubeControls();
+            syncWeaponControls();
             syncActorDimensionControls();
 
             ui.selectionInfo.classList.remove('hidden');
@@ -2421,6 +3202,458 @@
             referenceCubes = [];
         }
 
+        function getWeaponPoseKey(weaponOrId) {
+            const id = typeof weaponOrId === 'number'
+                ? weaponOrId
+                : Number.parseInt(weaponOrId?.userData?.weaponId, 10);
+            return `weapon:${Number.isInteger(id) ? id : 0}`;
+        }
+
+        function getWeaponDisplayName(weapon) {
+            return weapon?.name?.replace(/^Weapon_/, 'Weapon ').replace(/_/g, ' ') || 'Weapon';
+        }
+
+        function getWeaponPlacement(index) {
+            return {
+                x: -2.25 - (index % 3) * 1.1,
+                y: 0.02,
+                z: -1.5 - Math.floor(index / 3) * 1.3
+            };
+        }
+
+        function clampWeaponSize(value) {
+            return THREE.MathUtils.clamp(value, WEAPON_MIN_SIZE, WEAPON_MAX_SIZE);
+        }
+
+        function readWeaponDimension(input, fallback) {
+            const value = Number.parseFloat(input.value);
+            return Number.isFinite(value) ? clampWeaponSize(value) : fallback;
+        }
+
+        function syncWeaponDimensionsFromScale(weapon) {
+            if (!weapon) return;
+
+            weapon.userData.dimensions = {
+                width: clampWeaponSize(Math.abs(weapon.scale.x) || WEAPON_DEFAULT_DIMENSIONS.width),
+                length: clampWeaponSize(Math.abs(weapon.scale.y) || WEAPON_DEFAULT_DIMENSIONS.length),
+                depth: clampWeaponSize(Math.abs(weapon.scale.z) || WEAPON_DEFAULT_DIMENSIONS.depth)
+            };
+        }
+
+        function setWeaponDimensions(weapon, width, length, depth) {
+            if (!weapon) return;
+
+            const dimensions = {
+                width: clampWeaponSize(width),
+                length: clampWeaponSize(length),
+                depth: clampWeaponSize(depth)
+            };
+
+            weapon.scale.set(dimensions.width, dimensions.length, dimensions.depth);
+            weapon.userData.dimensions = dimensions;
+            weapon.updateMatrixWorld(true);
+        }
+
+        function handleWeaponDimensionInput() {
+            if (!selectedWeapon) return;
+
+            const current = selectedWeapon.userData.dimensions;
+            setWeaponDimensions(
+                selectedWeapon,
+                readWeaponDimension(ui.weaponWidthInput, current.width),
+                readWeaponDimension(ui.weaponLengthInput, current.length),
+                readWeaponDimension(ui.weaponDepthInput, current.depth)
+            );
+            handlePoseEdited();
+        }
+
+        function getAnchorableJoints() {
+            const joints = [];
+
+            characters.forEach(character => {
+                character.traverse(obj => {
+                    if (obj.isGroup && obj.userData.isJoint) {
+                        joints.push(obj);
+                    }
+                });
+            });
+
+            return joints;
+        }
+
+        function findJointByName(name) {
+            let found = null;
+
+            characters.some(character => {
+                character.traverse(obj => {
+                    if (!found && obj.isGroup && obj.name === name) {
+                        found = obj;
+                    }
+                });
+                return Boolean(found);
+            });
+
+            return found;
+        }
+
+        function getJointDisplayName(joint) {
+            const match = joint?.name?.match(/^(.*)_(\d+)$/);
+            if (!match) return joint?.name || 'Joint';
+
+            const baseName = match[1].replace(/_/g, ' ');
+            const actorNumber = Number.parseInt(match[2], 10) + 1;
+            return `H${actorNumber} ${baseName}`;
+        }
+
+        function syncWeaponAnchorOptions() {
+            if (!ui.weaponAnchorSelect) return;
+
+            const previousValue = ui.weaponAnchorSelect.value;
+            const joints = getAnchorableJoints();
+            const preferredJointName = selectedWeapon?.userData.anchor?.jointName
+                || lastSelectedJoint?.name
+                || previousValue;
+
+            ui.weaponAnchorSelect.innerHTML = '';
+
+            if (joints.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No limbs';
+                ui.weaponAnchorSelect.appendChild(option);
+                ui.weaponAnchorSelect.disabled = true;
+                ui.anchorWeaponBtn.disabled = true;
+                return;
+            }
+
+            joints.forEach(joint => {
+                const option = document.createElement('option');
+                option.value = joint.name;
+                option.textContent = getJointDisplayName(joint);
+                ui.weaponAnchorSelect.appendChild(option);
+            });
+
+            const nextValue = joints.some(joint => joint.name === preferredJointName)
+                ? preferredJointName
+                : joints[0].name;
+
+            ui.weaponAnchorSelect.value = nextValue;
+            ui.weaponAnchorSelect.disabled = false;
+            ui.anchorWeaponBtn.disabled = !selectedWeapon;
+        }
+
+        function syncWeaponControls() {
+            if (!ui.weaponPanel) return;
+
+            if (!selectedWeapon) {
+                ui.weaponPanel.classList.add('hidden');
+                return;
+            }
+
+            const dimensions = selectedWeapon.userData.dimensions;
+            const anchor = selectedWeapon.userData.anchor;
+
+            ui.weaponPanel.classList.remove('hidden');
+            ui.weaponWidthInput.value = formatReferenceCubeDimension(dimensions.width);
+            ui.weaponLengthInput.value = formatReferenceCubeDimension(dimensions.length);
+            ui.weaponDepthInput.value = formatReferenceCubeDimension(dimensions.depth);
+            ui.weaponAnchorPoint.value = anchor?.point || 'end';
+            syncWeaponAnchorOptions();
+
+            if (anchor) {
+                const joint = findJointByName(anchor.jointName);
+                ui.weaponAnchorLabel.textContent = joint
+                    ? `Anchored: ${getJointDisplayName(joint)} ${anchor.point}`
+                    : 'Anchored: missing limb';
+                ui.deanchorWeaponBtn.disabled = false;
+            } else {
+                ui.weaponAnchorLabel.textContent = 'Free';
+                ui.deanchorWeaponBtn.disabled = true;
+            }
+        }
+
+        function getJointAnchorLocalPosition(joint, point) {
+            if (point !== 'end') {
+                return new THREE.Vector3(0, 0, 0);
+            }
+
+            return joint?.userData?.anchorEndOffset?.clone?.() || new THREE.Vector3(0, 0, 0);
+        }
+
+        function getWeaponAnchorQuaternion(joint, point) {
+            const quaternion = new THREE.Quaternion();
+            if (point !== 'end') {
+                return quaternion;
+            }
+
+            const endOffset = joint?.userData?.anchorEndOffset;
+            if (!endOffset || endOffset.lengthSq() <= 1e-8) {
+                return quaternion;
+            }
+
+            tempAnchorDirection.copy(endOffset).normalize();
+            quaternion.setFromUnitVectors(tempAnchorBaseDirection, tempAnchorDirection);
+            return quaternion;
+        }
+
+        function applyTransformPayloadToObject(object, transform) {
+            if (!object || !transform) return;
+
+            if (Array.isArray(transform.position)) {
+                object.position.fromArray(transform.position);
+            }
+
+            if (Array.isArray(transform.quaternion)) {
+                object.quaternion.fromArray(transform.quaternion);
+                if (object.quaternion.lengthSq() === 0) {
+                    object.quaternion.identity();
+                } else {
+                    object.quaternion.normalize();
+                }
+            }
+
+            if (Array.isArray(transform.scale)) {
+                object.scale.set(
+                    clampWeaponSize(Math.abs(transform.scale[0]) || WEAPON_DEFAULT_DIMENSIONS.width),
+                    clampWeaponSize(Math.abs(transform.scale[1]) || WEAPON_DEFAULT_DIMENSIONS.length),
+                    clampWeaponSize(Math.abs(transform.scale[2]) || WEAPON_DEFAULT_DIMENSIONS.depth)
+                );
+            }
+
+            object.updateMatrixWorld(true);
+        }
+
+        function serializeObjectTransform(object) {
+            return {
+                position: [object.position.x, object.position.y, object.position.z],
+                quaternion: [
+                    object.quaternion.x,
+                    object.quaternion.y,
+                    object.quaternion.z,
+                    object.quaternion.w
+                ],
+                scale: [object.scale.x, object.scale.y, object.scale.z]
+            };
+        }
+
+        function serializeSceneWeapons() {
+            return weapons.map(weapon => {
+                syncWeaponDimensionsFromScale(weapon);
+                return {
+                    id: weapon.userData.weaponId,
+                    name: weapon.name,
+                    color: weapon.userData.color || WEAPON_DEFAULT_COLOR,
+                    dimensions: { ...weapon.userData.dimensions },
+                    anchor: weapon.userData.anchor ? { ...weapon.userData.anchor } : null,
+                    transform: serializeObjectTransform(weapon)
+                };
+            });
+        }
+
+        function syncWeaponsToAsset(asset) {
+            const weaponDefs = normalizeSerializedWeapons(asset?.scene?.weapons ?? asset?.weapons);
+
+            clearWeapons();
+            weaponDefs.forEach(definition => {
+                createWeapon({
+                    ...definition,
+                    autoAnchor: false,
+                    select: false,
+                    silent: true
+                });
+            });
+            syncWeaponControls();
+        }
+
+        function anchorWeaponToJoint(weapon, joint, point = 'end') {
+            if (!weapon || !joint) return false;
+
+            joint.add(weapon);
+            weapon.position.copy(getJointAnchorLocalPosition(joint, point));
+            weapon.quaternion.copy(getWeaponAnchorQuaternion(joint, point));
+            weapon.userData.anchor = {
+                jointName: joint.name,
+                point
+            };
+            weapon.updateMatrixWorld(true);
+            syncTransformAttachment();
+            syncWeaponControls();
+            return true;
+        }
+
+        function anchorSelectedWeaponFromControls() {
+            if (!selectedWeapon) return;
+
+            const joint = findJointByName(ui.weaponAnchorSelect.value);
+            if (!joint) {
+                setStatus('Select a limb anchor for the weapon.', 'error');
+                syncWeaponControls();
+                return;
+            }
+
+            const point = ui.weaponAnchorPoint.value === 'pivot' ? 'pivot' : 'end';
+            anchorWeaponToJoint(selectedWeapon, joint, point);
+            handlePoseEdited();
+            setStatus(`${getWeaponDisplayName(selectedWeapon)} anchored to ${getJointDisplayName(joint)}.`, 'success');
+        }
+
+        function deanchorWeapon(weapon) {
+            if (!weapon) return;
+
+            weapon.updateMatrixWorld(true);
+            scene.attach(weapon);
+            weapon.userData.anchor = null;
+            syncWeaponDimensionsFromScale(weapon);
+            weapon.updateMatrixWorld(true);
+            syncTransformAttachment();
+            syncWeaponControls();
+        }
+
+        function deanchorSelectedWeapon() {
+            if (!selectedWeapon) return;
+
+            const weaponName = getWeaponDisplayName(selectedWeapon);
+            deanchorWeapon(selectedWeapon);
+            handlePoseEdited();
+            setStatus(`${weaponName} deanchored.`, 'info');
+        }
+
+        function createWeapon(options = {}) {
+            const explicitId = Number.parseInt(options.id, 10);
+            const weaponId = Number.isInteger(explicitId) && explicitId > 0
+                ? explicitId
+                : nextWeaponId;
+            nextWeaponId = Math.max(nextWeaponId, weaponId + 1);
+
+            const dimensions = normalizeWeaponDimensions(options.dimensions ?? options);
+            const placement = getWeaponPlacement(weapons.length);
+            const group = new THREE.Group();
+            group.name = String(options.name || `Weapon_${weaponId}`).trim() || `Weapon_${weaponId}`;
+            group.position.set(
+                Number.isFinite(options.x) ? options.x : placement.x,
+                Number.isFinite(options.y) ? options.y : placement.y,
+                Number.isFinite(options.z) ? options.z : placement.z
+            );
+
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            geometry.translate(0, 0.5, 0);
+
+            const color = normalizeColorValue(options.color, WEAPON_DEFAULT_COLOR);
+            const material = new THREE.MeshStandardMaterial({
+                color,
+                emissive: 0x000000,
+                roughness: 0.32,
+                metalness: 0.5
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData.weapon = group;
+            group.add(mesh);
+
+            const edges = new THREE.LineSegments(
+                new THREE.EdgesGeometry(geometry),
+                new THREE.LineBasicMaterial({
+                    color: 0xfef3c7,
+                    transparent: true,
+                    opacity: 0.75
+                })
+            );
+            group.add(edges);
+
+            group.userData.isWeapon = true;
+            group.userData.weaponId = weaponId;
+            group.userData.mesh = mesh;
+            group.userData.edges = edges;
+            group.userData.color = color;
+            group.userData.anchor = null;
+            setWeaponDimensions(group, dimensions.width, dimensions.length, dimensions.depth);
+
+            scene.add(group);
+            weapons.push(group);
+            interactables.push(mesh);
+
+            const requestedAnchor = normalizeWeaponAnchor(options.anchor);
+            const autoAnchorJoint = options.autoAnchor === false ? null : selectedJoint;
+            const anchorJoint = requestedAnchor
+                ? findJointByName(requestedAnchor.jointName)
+                : autoAnchorJoint;
+            const anchorPoint = requestedAnchor?.point || 'end';
+
+            if (anchorJoint) {
+                anchorWeaponToJoint(group, anchorJoint, anchorPoint);
+            }
+
+            if (options.transform) {
+                applyTransformPayloadToObject(group, options.transform);
+                syncWeaponDimensionsFromScale(group);
+            }
+
+            if (options.select !== false) {
+                selectWeapon(group);
+            }
+
+            if (!options.silent) {
+                const suffix = anchorJoint ? ` anchored to ${getJointDisplayName(anchorJoint)}` : ' added';
+                setStatus(`${getWeaponDisplayName(group)}${suffix}.`, 'info');
+            }
+
+            return group;
+        }
+
+        function selectWeapon(weapon) {
+            if (selectedMesh) {
+                setSelectedMeshEmissive(selectedMesh, 0x000000);
+            }
+
+            selectedMesh = weapon.userData.mesh;
+            selectedJoint = null;
+            selectedReferenceCube = null;
+            selectedWeapon = weapon;
+            resetPullDragState();
+            setSelectedMeshEmissive(selectedMesh, 0x7c2d12);
+
+            syncTransformAttachment();
+            syncReferenceCubeControls();
+            syncWeaponControls();
+            syncActorDimensionControls();
+
+            ui.selectionInfo.classList.remove('hidden');
+            ui.selectedName.innerText = getWeaponDisplayName(weapon);
+        }
+
+        function deleteWeapon(weapon) {
+            if (!weapon) return;
+
+            if (selectedWeapon === weapon) {
+                deselect();
+            }
+
+            removeInteractableObject(weapon.userData.mesh);
+            weapon.traverse(obj => {
+                disposeRenderable(obj);
+            });
+            weapon.parent?.remove(weapon);
+            weapons = weapons.filter(item => item !== weapon);
+            syncWeaponControls();
+        }
+
+        function deleteSelectedWeapon() {
+            const weapon = selectedWeapon;
+            if (!weapon) return;
+
+            const weaponName = getWeaponDisplayName(weapon);
+            deleteWeapon(weapon);
+            setStatus(`${weaponName} deleted.`, 'info');
+        }
+
+        function clearWeapons() {
+            const sceneWeapons = [...weapons];
+            sceneWeapons.forEach(deleteWeapon);
+            weapons = [];
+        }
+
         function selectJoint(mesh) {
             if(selectedMesh) {
                 setSelectedMeshEmissive(selectedMesh, 0x000000);
@@ -2428,7 +3661,10 @@
             selectedMesh = mesh;
             selectedJoint = mesh.userData.joint;
             selectedReferenceCube = null;
+            selectedWeapon = null;
+            lastSelectedJoint = selectedJoint;
             syncReferenceCubeControls();
+            syncWeaponControls();
             syncActorDimensionControls();
             // Highlight selected
             setSelectedMeshEmissive(selectedMesh, 0x333333);
@@ -2450,14 +3686,18 @@
             }
             selectedJoint = null;
             selectedReferenceCube = null;
+            selectedWeapon = null;
             resetPullDragState();
             transformControl.detach();
             ui.selectionInfo.classList.add('hidden');
             syncReferenceCubeControls();
+            syncWeaponControls();
             syncActorDimensionControls();
         }
 
         function clearSceneCharacters() {
+            clearWeapons();
+            lastSelectedJoint = null;
             deselect();
 
             characters.forEach(character => {
@@ -2512,6 +3752,11 @@
         function createLimb(width, height, depth, pivotYOffset, material, name, charId) {
             const group = new THREE.Group();
             group.name = name + "_" + charId;
+            const minY = -height * 0.5 + pivotYOffset;
+            const maxY = height * 0.5 + pivotYOffset;
+            const endY = Math.abs(maxY) >= Math.abs(minY) ? maxY : minY;
+            group.userData.isJoint = true;
+            group.userData.anchorEndOffset = new THREE.Vector3(0, endY, 0);
             
             const geometry = new THREE.BoxGeometry(width, height, depth);
             // Translate geometry so the group origin acts as the joint pivot
@@ -2615,6 +3860,7 @@
             root.userData.characterColor = `#${color.getHexString()}`;
             scene.add(root);
             characters.push(root);
+            syncWeaponControls();
             return root;
         }
 

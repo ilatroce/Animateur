@@ -287,6 +287,7 @@
             { file: 'forwardflip-realistic.animation.json', group: 'jump' },
             { file: 'spinningkick.animation.json', group: 'jump' },
             { file: 'spinningkick-realistic.animation.json', group: 'jump' },
+            { file: 'spinningslash-overdrive.animation.json', group: 'jump' },
             { file: 'spear.animation.json', group: 'interaction' },
             { file: 'spear-realistic.animation.json', group: 'interaction' },
             { file: 'summoning-magic.animation.json', group: 'summon' }
@@ -296,6 +297,7 @@
             'forwardflip-realistic.animation.json': 0.72,
             'spinningkick.animation.json': 0.42,
             'spinningkick-realistic.animation.json': 0.34,
+            'spinningslash-overdrive.animation.json': 0.38,
             'summoning-magic.animation.json': 0.08,
             'spear.animation.json': 1,
             'spear-realistic.animation.json': 1
@@ -313,6 +315,20 @@
         const tempDirection = new THREE.Vector3();
         const tempQuatA = new THREE.Quaternion();
         const tempQuatB = new THREE.Quaternion();
+        const slashBladeBase = new THREE.Vector3();
+        const slashBladeTip = new THREE.Vector3();
+        const slashBladeMid = new THREE.Vector3();
+        const slashBladeDirection = new THREE.Vector3();
+        const slashTrailTangent = new THREE.Vector3();
+        const slashTrailSide = new THREE.Vector3();
+        const slashTrailView = new THREE.Vector3();
+        const slashSparkSide = new THREE.Vector3();
+        const slashSparkLift = new THREE.Vector3();
+        const slashTempPoint = new THREE.Vector3();
+        const slashTempPrev = new THREE.Vector3();
+        const slashTempNext = new THREE.Vector3();
+        const slashBladeQuaternion = new THREE.Quaternion();
+        const slashFallbackAxis = new THREE.Vector3(1, 0, 0);
 
         let scene;
         let camera;
@@ -324,6 +340,7 @@
         let nearestNpc = null;
         let nearbyNpcCount = 0;
         let summonVfx = null;
+        let slashVfx = null;
         let activeEffect = null;
         let activeEffectTime = 0;
         let sceneReady = false;
@@ -440,6 +457,8 @@
 
             summonVfx = createSummonVfxRig();
             scene.add(summonVfx.group);
+            slashVfx = createBladeStormVfxRig();
+            scene.add(slashVfx.group);
 
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
@@ -946,7 +965,6 @@
             }
 
             startSingleSequence(asset, `H: ${asset.name}`, ACTION_MOTION_SCALES[asset.fileName] ?? 0.08);
-            setActiveEffect(asset.effects, player);
             setStatus(`Casting ${asset.name}.`, 'success');
         }
 
@@ -981,6 +999,7 @@
                 anchorFacing: player.facing
             };
             player.currentClipLabel = label;
+            setActiveEffect(asset.effects, player);
         }
 
         function startInteractionSequence(asset, partner) {
@@ -1489,24 +1508,49 @@
         }
 
         function normalizeAnimationEffects(data) {
-            if (!data || data.preset !== 'arcane-summon') return null;
+            if (!data || typeof data.preset !== 'string') return null;
 
             const startTime = Math.max(0, Number.parseFloat(data.startTime) || 0);
             const peakTime = Math.max(startTime + 0.1, Number.parseFloat(data.peakTime) || startTime + 1.8);
             const endTime = Math.max(peakTime + 0.1, Number.parseFloat(data.endTime) || peakTime + 1.6);
 
-            return {
-                preset: 'arcane-summon',
-                startTime: roundTime(startTime),
-                peakTime: roundTime(peakTime),
-                endTime: roundTime(endTime),
-                radius: THREE.MathUtils.clamp(Number.parseFloat(data.radius) || 3.2, 1.5, 6),
-                columnHeight: THREE.MathUtils.clamp(Number.parseFloat(data.columnHeight) || 6.2, 2.5, 10),
-                primaryColor: normalizeColorValue(data.primaryColor, '#63f3ff'),
-                secondaryColor: normalizeColorValue(data.secondaryColor, '#5b36ff'),
-                accentColor: normalizeColorValue(data.accentColor, '#ffd36b'),
-                glowColor: normalizeColorValue(data.glowColor, '#f0f9ff')
-            };
+            if (data.preset === 'arcane-summon') {
+                return {
+                    preset: 'arcane-summon',
+                    startTime: roundTime(startTime),
+                    peakTime: roundTime(peakTime),
+                    endTime: roundTime(endTime),
+                    radius: THREE.MathUtils.clamp(Number.parseFloat(data.radius) || 3.2, 1.5, 6),
+                    columnHeight: THREE.MathUtils.clamp(Number.parseFloat(data.columnHeight) || 6.2, 2.5, 10),
+                    primaryColor: normalizeColorValue(data.primaryColor, '#63f3ff'),
+                    secondaryColor: normalizeColorValue(data.secondaryColor, '#5b36ff'),
+                    accentColor: normalizeColorValue(data.accentColor, '#ffd36b'),
+                    glowColor: normalizeColorValue(data.glowColor, '#f0f9ff')
+                };
+            }
+
+            if (data.preset === 'blade-storm') {
+                return {
+                    preset: 'blade-storm',
+                    startTime: roundTime(startTime),
+                    peakTime: roundTime(peakTime),
+                    endTime: roundTime(endTime),
+                    targetCharacter: Math.max(0, Number.parseInt(data.targetCharacter, 10) || 0),
+                    weaponId: Math.max(0, Number.parseInt(data.weaponId, 10) || 0),
+                    anchorJoint: String(data.anchorJoint || 'Right_Lower_Arm_0').trim() || 'Right_Lower_Arm_0',
+                    bladeLength: THREE.MathUtils.clamp(Number.parseFloat(data.bladeLength) || 2.8, 0.8, 5.5),
+                    trailLength: THREE.MathUtils.clamp(Number.parseInt(data.trailLength, 10) || 24, 8, 48),
+                    trailWidth: THREE.MathUtils.clamp(Number.parseFloat(data.trailWidth) || 0.52, 0.16, 1.35),
+                    shockwaveRadius: THREE.MathUtils.clamp(Number.parseFloat(data.shockwaveRadius) || 3.4, 1.2, 6.5),
+                    sparkCount: THREE.MathUtils.clamp(Number.parseInt(data.sparkCount, 10) || 96, 24, 180),
+                    primaryColor: normalizeColorValue(data.primaryColor, '#67f8ff'),
+                    secondaryColor: normalizeColorValue(data.secondaryColor, '#8b5cff'),
+                    accentColor: normalizeColorValue(data.accentColor, '#fff06a'),
+                    glowColor: normalizeColorValue(data.glowColor, '#f7fbff')
+                };
+            }
+
+            return null;
         }
 
         function normalizeColorValue(value, fallback) {
@@ -1807,23 +1851,325 @@
             return { group, circle, outerCircle, beam, flare, particles, light, time: 0 };
         }
 
+        function createBladeTrailGeometry(maxTrailPoints) {
+            const geometry = new THREE.BufferGeometry();
+            const vertexCount = maxTrailPoints * 2;
+            const positions = new Float32Array(vertexCount * 3);
+            const trailProgress = new Float32Array(vertexCount);
+            const trailEdge = new Float32Array(vertexCount);
+            const indices = [];
+
+            for (let index = 0; index < maxTrailPoints; index += 1) {
+                const progress = maxTrailPoints <= 1 ? 0 : index / (maxTrailPoints - 1);
+                const left = index * 2;
+                const right = left + 1;
+                trailProgress[left] = progress;
+                trailProgress[right] = progress;
+                trailEdge[left] = -1;
+                trailEdge[right] = 1;
+
+                if (index < maxTrailPoints - 1) {
+                    const nextLeft = left + 2;
+                    const nextRight = left + 3;
+                    indices.push(left, right, nextLeft, right, nextRight, nextLeft);
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('aTrail', new THREE.BufferAttribute(trailProgress, 1));
+            geometry.setAttribute('aEdge', new THREE.BufferAttribute(trailEdge, 1));
+            geometry.setIndex(indices);
+            geometry.setDrawRange(0, 0);
+            return geometry;
+        }
+
+        function createBladeTrailMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uSecondary: { value: new THREE.Color('#8b5cff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    attribute float aTrail;
+                    attribute float aEdge;
+                    varying float vTrail;
+                    varying float vEdge;
+
+                    void main() {
+                        vTrail = aTrail;
+                        vEdge = aEdge;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying float vTrail;
+                    varying float vEdge;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uSecondary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        float fade = pow(max(0.0, 1.0 - vTrail), 1.35);
+                        float center = 1.0 - smoothstep(0.08, 1.0, abs(vEdge));
+                        float rim = smoothstep(0.35, 0.95, abs(vEdge));
+                        float pulse = 0.72 + 0.28 * sin(uTime * 12.0 - vTrail * 24.0);
+                        float shard = pow(max(0.0, sin((1.0 - vTrail) * 34.0 + uTime * 18.0)), 5.0);
+                        float alpha = (center * 0.48 + rim * 0.24 + shard * 0.3) * fade * pulse * uIntensity;
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = mix(uSecondary, uPrimary, center);
+                        color += uAccent * (rim * 0.55 + shard * 0.7);
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeCoreMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec2 vUv;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        float center = 1.0 - abs(vUv.x - 0.5) * 2.0;
+                        float body = pow(max(center, 0.0), 0.7);
+                        float hotEdge = pow(max(0.0, sin(vUv.y * 24.0 - uTime * 16.0)), 8.0);
+                        float taper = smoothstep(0.0, 0.08, vUv.y) * (1.0 - smoothstep(0.86, 1.0, vUv.y));
+                        float alpha = (body * 0.75 + hotEdge * 0.45) * taper * uIntensity;
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = uPrimary * (0.9 + body * 0.7) + uAccent * hotEdge;
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeShockwaveMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uProgress: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uSecondary: { value: new THREE.Color('#8b5cff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec2 vUv;
+                    uniform float uTime;
+                    uniform float uIntensity;
+                    uniform float uProgress;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uSecondary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        vec2 centered = vUv - 0.5;
+                        float dist = length(centered) * 2.0;
+                        float angle = atan(centered.y, centered.x);
+                        float ringRadius = 0.18 + uProgress * 0.68;
+                        float ring = 1.0 - smoothstep(0.025, 0.095, abs(dist - ringRadius));
+                        float inner = 1.0 - smoothstep(0.0, ringRadius, dist);
+                        float spokes = pow(max(0.0, sin(angle * 12.0 - uTime * 9.0)), 7.0) * (1.0 - smoothstep(0.1, 0.92, dist));
+                        float alpha = (ring * 0.82 + inner * 0.05 + spokes * 0.22) * (1.0 - uProgress * 0.58) * uIntensity;
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = mix(uSecondary, uPrimary, ring);
+                        color += uAccent * (spokes * 0.55 + ring * 0.25);
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeSparkMaterial() {
+            return new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                uniforms: {
+                    uTime: { value: 0 },
+                    uIntensity: { value: 0 },
+                    uPrimary: { value: new THREE.Color('#67f8ff') },
+                    uAccent: { value: new THREE.Color('#fff06a') }
+                },
+                vertexShader: `
+                    attribute float aSeed;
+                    varying float vSeed;
+                    uniform float uIntensity;
+
+                    void main() {
+                        vSeed = aSeed;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        float size = (10.0 + 24.0 * aSeed) * uIntensity;
+                        gl_PointSize = max(0.0, size * (260.0 / -mvPosition.z));
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    varying float vSeed;
+                    uniform float uIntensity;
+                    uniform vec3 uPrimary;
+                    uniform vec3 uAccent;
+
+                    void main() {
+                        vec2 centered = gl_PointCoord - 0.5;
+                        float dist = length(centered) * 2.0;
+                        float glow = pow(max(0.0, 1.0 - dist), 2.8);
+                        float alpha = glow * uIntensity * (0.35 + vSeed * 0.65);
+
+                        if (alpha <= 0.001) discard;
+
+                        vec3 color = mix(uAccent, uPrimary, vSeed);
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `
+            });
+        }
+
+        function createBladeStormVfxRig() {
+            const group = new THREE.Group();
+            group.visible = false;
+
+            const maxTrailPoints = 48;
+            const trail = new THREE.Mesh(createBladeTrailGeometry(maxTrailPoints), createBladeTrailMaterial());
+            trail.frustumCulled = false;
+            trail.renderOrder = 12;
+            group.add(trail);
+
+            const blade = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.11, 1, 18, 1, true), createBladeCoreMaterial());
+            blade.frustumCulled = false;
+            blade.renderOrder = 14;
+            group.add(blade);
+
+            const shockwave = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 96, 96), createBladeShockwaveMaterial());
+            shockwave.rotation.x = -Math.PI / 2;
+            shockwave.position.y = 0.08;
+            shockwave.renderOrder = 10;
+            group.add(shockwave);
+
+            const sparkCount = 180;
+            const sparkGeometry = new THREE.BufferGeometry();
+            const sparkPositions = new Float32Array(sparkCount * 3);
+            const sparkSeeds = new Float32Array(sparkCount);
+            const sparkSwirls = new Float32Array(sparkCount);
+
+            for (let index = 0; index < sparkCount; index += 1) {
+                sparkSeeds[index] = Math.random();
+                sparkSwirls[index] = Math.random() * Math.PI * 2;
+            }
+
+            sparkGeometry.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+            sparkGeometry.setAttribute('aSeed', new THREE.BufferAttribute(sparkSeeds, 1));
+            sparkGeometry.setDrawRange(0, 0);
+
+            const particles = new THREE.Points(sparkGeometry, createBladeSparkMaterial());
+            particles.frustumCulled = false;
+            particles.renderOrder = 15;
+            group.add(particles);
+
+            const light = new THREE.PointLight(0xf7fbff, 0, 12, 1.8);
+            group.add(light);
+
+            return {
+                group,
+                trail,
+                blade,
+                shockwave,
+                particles,
+                light,
+                time: 0,
+                history: [],
+                lastClipTime: null,
+                maxTrailPoints,
+                sparkCount,
+                sparkPositions,
+                sparkSeeds,
+                sparkSwirls
+            };
+        }
+
         function setActiveEffect(effectData, actor) {
             const normalized = normalizeAnimationEffects(effectData);
             activeEffect = normalized ? { config: normalized, actor } : null;
             activeEffectTime = 0;
 
-            if (!summonVfx) return;
-
             if (!activeEffect) {
-                summonVfx.group.visible = false;
-                summonVfx.light.intensity = 0;
+                hideSummonVfx();
+                hideBladeStormVfx();
                 return;
             }
 
-            const primary = new THREE.Color(activeEffect.config.primaryColor);
-            const secondary = new THREE.Color(activeEffect.config.secondaryColor);
-            const accent = new THREE.Color(activeEffect.config.accentColor);
-            const glow = new THREE.Color(activeEffect.config.glowColor);
+            if (activeEffect.config.preset === 'arcane-summon') {
+                hideBladeStormVfx();
+                setSummonVfxColors(activeEffect.config);
+                return;
+            }
+
+            if (activeEffect.config.preset === 'blade-storm') {
+                hideSummonVfx();
+                setBladeStormVfxColors(activeEffect.config);
+                if (slashVfx) {
+                    slashVfx.history.length = 0;
+                    slashVfx.lastClipTime = null;
+                }
+            }
+        }
+
+        function setSummonVfxColors(effect) {
+            if (!summonVfx) return;
+
+            const primary = new THREE.Color(effect.primaryColor);
+            const secondary = new THREE.Color(effect.secondaryColor);
+            const accent = new THREE.Color(effect.accentColor);
+            const glow = new THREE.Color(effect.glowColor);
 
             [summonVfx.circle.material, summonVfx.outerCircle.material, summonVfx.beam.material].forEach(material => {
                 material.uniforms.uPrimary.value.copy(primary);
@@ -1840,34 +2186,83 @@
             summonVfx.light.color.copy(glow);
         }
 
+        function setBladeStormVfxColors(effect) {
+            if (!slashVfx) return;
+
+            const primary = new THREE.Color(effect.primaryColor);
+            const secondary = new THREE.Color(effect.secondaryColor);
+            const accent = new THREE.Color(effect.accentColor);
+            const glow = new THREE.Color(effect.glowColor);
+
+            [slashVfx.trail.material, slashVfx.shockwave.material].forEach(material => {
+                material.uniforms.uPrimary.value.copy(primary);
+                material.uniforms.uSecondary.value.copy(secondary);
+                material.uniforms.uAccent.value.copy(accent);
+            });
+
+            slashVfx.blade.material.uniforms.uPrimary.value.copy(primary);
+            slashVfx.blade.material.uniforms.uAccent.value.copy(accent);
+            slashVfx.particles.material.uniforms.uPrimary.value.copy(primary);
+            slashVfx.particles.material.uniforms.uAccent.value.copy(accent);
+            slashVfx.light.color.copy(glow);
+        }
+
         function clearActiveEffect() {
             activeEffect = null;
             activeEffectTime = 0;
+            hideSummonVfx();
+            hideBladeStormVfx();
+        }
+
+        function hideSummonVfx() {
             if (!summonVfx) return;
             summonVfx.group.visible = false;
             summonVfx.light.intensity = 0;
         }
 
-        function updateAnimationEffects(delta) {
-            if (!summonVfx) return;
+        function hideBladeStormVfx() {
+            if (!slashVfx) return;
+            slashVfx.group.visible = false;
+            slashVfx.light.intensity = 0;
+            slashVfx.trail.geometry.setDrawRange(0, 0);
+            slashVfx.particles.geometry.setDrawRange(0, 0);
+        }
 
-            summonVfx.time += delta;
+        function updateAnimationEffects(delta) {
+            if (summonVfx) summonVfx.time += delta;
+            if (slashVfx) slashVfx.time += delta;
 
             if (!activeEffect || !activeEffect.actor) {
-                summonVfx.group.visible = false;
-                summonVfx.light.intensity = 0;
+                hideSummonVfx();
+                hideBladeStormVfx();
                 return;
             }
 
-            const effect = activeEffect.config;
-            const targetActor = activeEffect.actor;
+            if (activeEffect.config.preset === 'arcane-summon') {
+                hideBladeStormVfx();
+                updateSummonEffect(activeEffect.config, activeEffect.actor);
+                return;
+            }
+
+            if (activeEffect.config.preset === 'blade-storm') {
+                hideSummonVfx();
+                updateBladeStormEffect(activeEffect.config, activeEffect.actor);
+                return;
+            }
+
+            hideSummonVfx();
+            hideBladeStormVfx();
+        }
+
+        function updateSummonEffect(effect, targetActor) {
+            if (!summonVfx) return;
+
             const charge = smoothProgress(effect.startTime, effect.peakTime, activeEffectTime);
             const decay = 1 - smoothProgress(effect.peakTime, effect.endTime, activeEffectTime);
             const envelope = THREE.MathUtils.clamp(charge * decay, 0, 1);
 
             if (envelope <= 0.001) {
-                summonVfx.group.visible = false;
-                summonVfx.light.intensity = 0;
+                hideSummonVfx();
                 return;
             }
 
@@ -1909,6 +2304,165 @@
             summonVfx.light.position.set(targetPosition.x, effect.columnHeight * (0.52 + rise * 0.08), targetPosition.z);
             summonVfx.light.distance = radius * 5.5;
             summonVfx.light.intensity = envelope * 5.4;
+        }
+
+        function getBladeStormEndpoints(effect, actor) {
+            const joints = actor?.root?.userData?.joints;
+            const anchorName = String(effect.anchorJoint || 'Right_Lower_Arm_0').replace(/_[0-9]+$/, '');
+            const joint = joints?.[anchorName] || joints?.Right_Lower_Arm;
+            if (!joint) return false;
+
+            actor.root.updateMatrixWorld(true);
+            slashBladeBase.set(0, -0.9, 0);
+            joint.localToWorld(slashBladeBase);
+            slashBladeTip.set(0, -0.9 - effect.bladeLength, 0);
+            joint.localToWorld(slashBladeTip);
+            return slashBladeBase.distanceToSquared(slashBladeTip) > 0.0001;
+        }
+
+        function updateBladeStormEffect(effect, actor) {
+            if (!slashVfx) return;
+
+            const charge = smoothProgress(effect.startTime, effect.peakTime, activeEffectTime);
+            const decay = 1 - smoothProgress(effect.peakTime, effect.endTime, activeEffectTime);
+            const envelope = THREE.MathUtils.clamp(charge * decay, 0, 1);
+
+            if (envelope <= 0.001 || !getBladeStormEndpoints(effect, actor)) {
+                hideBladeStormVfx();
+                return;
+            }
+
+            if (slashVfx.lastClipTime !== null && activeEffectTime < slashVfx.lastClipTime - 0.035) {
+                slashVfx.history.length = 0;
+            }
+            slashVfx.lastClipTime = activeEffectTime;
+
+            const activePoints = Math.min(effect.trailLength, slashVfx.maxTrailPoints);
+            slashVfx.history.unshift(slashBladeTip.clone());
+            while (slashVfx.history.length < activePoints) {
+                slashVfx.history.push(slashBladeTip.clone());
+            }
+            while (slashVfx.history.length > activePoints) {
+                slashVfx.history.pop();
+            }
+
+            slashBladeDirection.copy(slashBladeTip).sub(slashBladeBase);
+            const bladeLength = Math.max(0.001, slashBladeDirection.length());
+            slashBladeDirection.divideScalar(bladeLength);
+            slashBladeMid.copy(slashBladeBase).lerp(slashBladeTip, 0.5);
+
+            slashVfx.group.visible = true;
+            updateBladeStormTrail(effect, activePoints, envelope);
+            updateBladeStormBlade(effect, bladeLength, envelope);
+            updateBladeStormShockwave(effect, actor, envelope);
+            updateBladeStormParticles(effect, bladeLength, envelope);
+
+            slashVfx.light.position.copy(slashBladeTip);
+            slashVfx.light.distance = effect.shockwaveRadius * 1.8;
+            slashVfx.light.intensity = envelope * 0.9;
+        }
+
+        function updateBladeStormTrail(effect, activePoints, envelope) {
+            const geometry = slashVfx.trail.geometry;
+            const positions = geometry.attributes.position.array;
+
+            for (let index = 0; index < activePoints; index += 1) {
+                const point = slashVfx.history[Math.min(index, slashVfx.history.length - 1)] || slashBladeTip;
+                const prev = slashVfx.history[Math.max(0, index - 1)] || point;
+                const next = slashVfx.history[Math.min(slashVfx.history.length - 1, index + 1)] || point;
+
+                slashTempPoint.copy(point);
+                slashTempPrev.copy(prev);
+                slashTempNext.copy(next);
+                slashTrailTangent.copy(slashTempPrev).sub(slashTempNext);
+                if (slashTrailTangent.lengthSq() < 0.0001) {
+                    slashTrailTangent.copy(slashBladeDirection);
+                } else {
+                    slashTrailTangent.normalize();
+                }
+
+                slashTrailView.copy(camera.position).sub(slashTempPoint);
+                slashTrailSide.crossVectors(slashTrailTangent, slashTrailView);
+                if (slashTrailSide.lengthSq() < 0.0001) {
+                    slashTrailSide.crossVectors(slashTrailTangent, WORLD_UP);
+                }
+                if (slashTrailSide.lengthSq() < 0.0001) {
+                    slashTrailSide.crossVectors(slashTrailTangent, slashFallbackAxis);
+                }
+                slashTrailSide.normalize();
+
+                const progress = activePoints <= 1 ? 0 : index / (activePoints - 1);
+                const width = effect.trailWidth * Math.pow(1 - progress, 0.62) * (0.55 + envelope * 0.85);
+                const leftOffset = (index * 2) * 3;
+                const rightOffset = leftOffset + 3;
+
+                positions[leftOffset] = slashTempPoint.x + slashTrailSide.x * width;
+                positions[leftOffset + 1] = slashTempPoint.y + slashTrailSide.y * width;
+                positions[leftOffset + 2] = slashTempPoint.z + slashTrailSide.z * width;
+                positions[rightOffset] = slashTempPoint.x - slashTrailSide.x * width;
+                positions[rightOffset + 1] = slashTempPoint.y - slashTrailSide.y * width;
+                positions[rightOffset + 2] = slashTempPoint.z - slashTrailSide.z * width;
+            }
+
+            geometry.setDrawRange(0, Math.max(0, (activePoints - 1) * 6));
+            geometry.attributes.position.needsUpdate = true;
+            slashVfx.trail.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.trail.material.uniforms.uIntensity.value = envelope * 0.82;
+        }
+
+        function updateBladeStormBlade(effect, bladeLength, envelope) {
+            slashBladeQuaternion.setFromUnitVectors(WORLD_UP, slashBladeDirection);
+            slashVfx.blade.position.copy(slashBladeMid);
+            slashVfx.blade.quaternion.copy(slashBladeQuaternion);
+            slashVfx.blade.scale.set(1 + effect.trailWidth * 0.8, bladeLength, 1 + effect.trailWidth * 0.8);
+            slashVfx.blade.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.blade.material.uniforms.uIntensity.value = envelope * 0.95;
+        }
+
+        function updateBladeStormShockwave(effect, actor, envelope) {
+            const progress = smoothProgress(effect.startTime, effect.endTime, activeEffectTime);
+            const scale = effect.shockwaveRadius * (1.25 + Math.sin(progress * Math.PI) * 0.35);
+            slashVfx.shockwave.position.set(actor.root.position.x, 0.08, actor.root.position.z);
+            slashVfx.shockwave.scale.set(scale, scale, 1);
+            slashVfx.shockwave.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.shockwave.material.uniforms.uProgress.value = progress;
+            slashVfx.shockwave.material.uniforms.uIntensity.value = envelope * 0.46;
+        }
+
+        function updateBladeStormParticles(effect, bladeLength, envelope) {
+            const geometry = slashVfx.particles.geometry;
+            const positions = slashVfx.sparkPositions;
+            const count = Math.min(effect.sparkCount, slashVfx.sparkCount);
+
+            slashSparkSide.crossVectors(slashBladeDirection, WORLD_UP);
+            if (slashSparkSide.lengthSq() < 0.0001) {
+                slashSparkSide.crossVectors(slashBladeDirection, slashFallbackAxis);
+            }
+            slashSparkSide.normalize();
+            slashSparkLift.crossVectors(slashSparkSide, slashBladeDirection).normalize();
+
+            for (let index = 0; index < count; index += 1) {
+                const seed = slashVfx.sparkSeeds[index];
+                const phase = (slashVfx.time * (0.7 + seed * 1.8) + seed * 9.7) % 1;
+                const orbit = slashVfx.sparkSwirls[index] + slashVfx.time * (3.8 + seed * 6.5);
+                const spread = effect.trailWidth * (0.25 + seed * 1.15) * (1.15 - phase);
+                const backstep = bladeLength * (0.12 + phase * 0.82) * (0.35 + seed * 0.65);
+
+                slashTempPoint.copy(slashBladeTip)
+                    .addScaledVector(slashBladeDirection, -backstep)
+                    .addScaledVector(slashSparkSide, Math.cos(orbit) * spread)
+                    .addScaledVector(slashSparkLift, Math.sin(orbit) * spread + phase * 0.42);
+
+                const offset = index * 3;
+                positions[offset] = slashTempPoint.x;
+                positions[offset + 1] = slashTempPoint.y;
+                positions[offset + 2] = slashTempPoint.z;
+            }
+
+            geometry.setDrawRange(0, count);
+            geometry.attributes.position.needsUpdate = true;
+            slashVfx.particles.material.uniforms.uTime.value = slashVfx.time;
+            slashVfx.particles.material.uniforms.uIntensity.value = envelope;
         }
 
         function smoothProgress(edge0, edge1, value) {
