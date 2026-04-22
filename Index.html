@@ -50,6 +50,44 @@
         .timeline-marker:active {
             cursor: grabbing;
         }
+        .timeline-clip-shade {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: rgba(2, 6, 23, 0.5);
+            pointer-events: none;
+            z-index: 1;
+        }
+        .timeline-clip-range {
+            position: absolute;
+            top: 8px;
+            bottom: 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(251, 191, 36, 0.45);
+            background: linear-gradient(180deg, rgba(251, 191, 36, 0.16), rgba(249, 115, 22, 0.1));
+            box-shadow: inset 0 0 0 1px rgba(254, 243, 199, 0.12);
+            pointer-events: none;
+            z-index: 2;
+        }
+        .timeline-clip-handle {
+            position: absolute;
+            top: 50%;
+            width: 12px;
+            height: 30px;
+            border-radius: 999px;
+            border: 1px solid rgba(253, 224, 71, 0.95);
+            background: linear-gradient(180deg, rgba(251, 191, 36, 1), rgba(249, 115, 22, 1));
+            box-shadow: 0 8px 18px rgba(120, 53, 15, 0.35);
+            transform: translate(-50%, -50%);
+            cursor: ew-resize;
+            z-index: 5;
+        }
+        .timeline-clip-handle:hover {
+            box-shadow: 0 10px 22px rgba(194, 65, 12, 0.42);
+        }
+        .timeline-clip-handle:active {
+            cursor: ew-resize;
+        }
     </style>
     <!-- Import Map for Three.js -->
     <script type="importmap">
@@ -243,6 +281,9 @@
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
                     Play
                 </button>
+                <button id="clip-animation-btn" class="bg-amber-600/90 hover:bg-amber-500 text-white py-1.5 px-3 rounded-lg transition-colors text-sm border border-amber-300/25">
+                    Clip
+                </button>
                 <button id="clear-kf-btn" class="bg-red-900/50 hover:bg-red-800/60 text-red-200 py-1.5 px-3 rounded-lg transition-colors text-sm border border-red-900/50">
                     Clear Anim
                 </button>
@@ -276,9 +317,14 @@
                 <div id="timeline-track" class="relative mt-2 h-16 rounded-xl border border-white/10 bg-white/5 overflow-hidden">
                     <div id="timeline-workarea" class="absolute inset-0">
                         <div class="absolute left-3 right-3 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/10"></div>
+                        <div id="timeline-clip-before" class="timeline-clip-shade"></div>
+                        <div id="timeline-clip-range" class="timeline-clip-range"></div>
+                        <div id="timeline-clip-after" class="timeline-clip-shade"></div>
                         <div id="timeline-fill" class="absolute left-3 top-1/2 h-1 -translate-y-1/2 rounded-full bg-blue-500/70"></div>
                         <div id="timeline-keyframes" class="absolute inset-0"></div>
                         <div id="timeline-playhead"></div>
+                        <button id="timeline-clip-start" type="button" class="timeline-clip-handle" aria-label="Clip start"></button>
+                        <button id="timeline-clip-end" type="button" class="timeline-clip-handle" aria-label="Clip end"></button>
                     </div>
                 </div>
             </div>
@@ -342,6 +388,7 @@
         let currentTime = 0;
         let isPlaying = false;
         let playbackSpeed = 1;
+        const clipRange = { start: 0, end: 0 };
         let nextKeyframeId = 1;
         let pointerState = null;
         const KEYFRAME_TIME_STEP = 0.1;
@@ -560,6 +607,7 @@
             ui.addKeyframeBtn.addEventListener('click', recordKeyframeAtCurrentTime);
             ui.deleteKeyframeBtn.addEventListener('click', deleteSelectedKeyframe);
             ui.playBtn.addEventListener('click', togglePlay);
+            ui.clipAnimationBtn.addEventListener('click', clipAnimationToSelection);
             ui.clearKeyframesBtn.addEventListener('click', clearKeyframes);
             ui.timeInput.addEventListener('change', commitTimeInput);
             ui.timeInput.addEventListener('keydown', (event) => {
@@ -573,6 +621,8 @@
                 refreshTimelineUi();
             });
             ui.timelineTrack.addEventListener('pointerdown', handleTimelinePointerDown);
+            ui.timelineClipStart.addEventListener('pointerdown', (event) => handleClipHandlePointerDown(event, 'start'));
+            ui.timelineClipEnd.addEventListener('pointerdown', (event) => handleClipHandlePointerDown(event, 'end'));
             ui.poseLibrary.addEventListener('change', () => syncSelectedAssetName('pose'));
             ui.animationLibrary.addEventListener('change', () => syncSelectedAssetName('animation'));
             ui.savePoseBtn.addEventListener('click', saveCurrentPoseToLibrary);
@@ -653,6 +703,7 @@
             ui.addKeyframeBtn = document.getElementById('add-kf-btn');
             ui.deleteKeyframeBtn = document.getElementById('delete-kf-btn');
             ui.playBtn = document.getElementById('play-btn');
+            ui.clipAnimationBtn = document.getElementById('clip-animation-btn');
             ui.clearKeyframesBtn = document.getElementById('clear-kf-btn');
             ui.keyframeCount = document.getElementById('kf-count');
             ui.selectedFrame = document.getElementById('selected-frame');
@@ -665,6 +716,11 @@
             ui.timelineFill = document.getElementById('timeline-fill');
             ui.timelineKeyframes = document.getElementById('timeline-keyframes');
             ui.timelinePlayhead = document.getElementById('timeline-playhead');
+            ui.timelineClipBefore = document.getElementById('timeline-clip-before');
+            ui.timelineClipRange = document.getElementById('timeline-clip-range');
+            ui.timelineClipAfter = document.getElementById('timeline-clip-after');
+            ui.timelineClipStart = document.getElementById('timeline-clip-start');
+            ui.timelineClipEnd = document.getElementById('timeline-clip-end');
             ui.timelineEndLabel = document.getElementById('timeline-end-label');
             ui.poseNameInput = document.getElementById('pose-name-input');
             ui.poseLibrary = document.getElementById('pose-library');
@@ -993,6 +1049,7 @@
             nextKeyframeId = keyframes.reduce((maxId, frame) => Math.max(maxId, frame.id), 0) + 1;
             playbackSpeed = THREE.MathUtils.clamp(Number.parseFloat(asset.playbackSpeed) || 1, 0.25, 2.5);
             timelineViewDuration = Math.max(TIMELINE_MIN_DURATION, roundUpTime(getAnimationEndTime() + 0.5));
+            resetClipRange();
             setAnimationEffects(asset.effects);
             setCurrentTime(keyframes[0]?.time ?? 0);
             setStatus(
@@ -1324,6 +1381,30 @@
             }
 
             return common;
+        }
+
+        function clipAnimationEffects(effect, startTime, endTime) {
+            if (!effect) return null;
+
+            const duration = roundTime(Math.max(0, endTime - startTime));
+            if (effect.endTime < startTime || effect.startTime > endTime || duration <= 0) {
+                return null;
+            }
+
+            const shiftAndClamp = (time) => roundTime(THREE.MathUtils.clamp(time - startTime, 0, duration));
+            const clipped = {
+                ...effect,
+                startTime: shiftAndClamp(effect.startTime),
+                peakTime: shiftAndClamp(effect.peakTime),
+                endTime: shiftAndClamp(effect.endTime)
+            };
+
+            clipped.peakTime = THREE.MathUtils.clamp(clipped.peakTime, clipped.startTime, clipped.endTime);
+            if (clipped.endTime <= clipped.startTime) {
+                return null;
+            }
+
+            return clipped;
         }
 
         function smoothProgress(edge0, edge1, value) {
@@ -2348,6 +2429,21 @@
             return pose;
         }
 
+        function clonePoseState(pose) {
+            const cloned = {};
+
+            Object.entries(pose || {}).forEach(([name, transform]) => {
+                if (!transform?.position || !transform?.quaternion) return;
+                cloned[name] = {
+                    position: transform.position.clone(),
+                    quaternion: transform.quaternion.clone(),
+                    scale: transform.scale?.clone() ?? null
+                };
+            });
+
+            return cloned;
+        }
+
         function applyPoseState(pose) {
             if (!pose) return;
 
@@ -2638,25 +2734,20 @@
             return blended;
         }
 
-        function applyPoseAtTime(time) {
+        function getPoseStateAtTime(time) {
             if (keyframes.length === 0) {
-                applyAnimationEffectsState(time);
-                return;
+                return null;
             }
 
             sortKeyframes();
 
             if (keyframes.length === 1 || time <= keyframes[0].time) {
-                applyPoseState(keyframes[0].pose);
-                applyAnimationEffectsState(time);
-                return;
+                return clonePoseState(keyframes[0].pose);
             }
 
             const endKeyframe = keyframes[keyframes.length - 1];
             if (time >= endKeyframe.time) {
-                applyPoseState(endKeyframe.pose);
-                applyAnimationEffectsState(time);
-                return;
+                return clonePoseState(endKeyframe.pose);
             }
 
             for (let index = 0; index < keyframes.length - 1; index += 1) {
@@ -2666,13 +2757,18 @@
                 if (time >= startFrame.time && time <= endFrame.time) {
                     const segmentDuration = endFrame.time - startFrame.time;
                     const alpha = segmentDuration <= 0 ? 0 : (time - startFrame.time) / segmentDuration;
-                    applyPoseState(interpolatePoseStates(startFrame.pose, endFrame.pose, alpha));
-                    applyAnimationEffectsState(time);
-                    return;
+                    return interpolatePoseStates(startFrame.pose, endFrame.pose, alpha);
                 }
             }
 
-            applyPoseState(endKeyframe.pose);
+            return clonePoseState(endKeyframe.pose);
+        }
+
+        function applyPoseAtTime(time) {
+            const pose = getPoseStateAtTime(time);
+            if (pose) {
+                applyPoseState(pose);
+            }
             applyAnimationEffectsState(time);
         }
 
@@ -2720,6 +2816,7 @@
             if (keyframes.length === 0) {
                 selectedKeyframeId = null;
                 currentTime = 0;
+                resetClipRange();
                 setAnimationEffects(null);
                 stopPlayback();
                 timelineViewDuration = TIMELINE_MIN_DURATION;
@@ -2727,6 +2824,7 @@
                 return;
             }
 
+            clampClipRangeToAnimation();
             const replacement = keyframes[Math.min(index, keyframes.length - 1)];
             selectedKeyframeId = replacement?.id ?? null;
             setCurrentTime(replacement ? replacement.time : 0);
@@ -2739,6 +2837,7 @@
             nextKeyframeId = 1;
             pointerState = null;
             timelineViewDuration = TIMELINE_MIN_DURATION;
+            resetClipRange();
             setAnimationEffects(null);
             stopPlayback();
             refreshTimelineUi();
@@ -2796,6 +2895,20 @@
             setCurrentTime(getTimeFromClientX(event.clientX));
         }
 
+        function handleClipHandlePointerDown(event, handle) {
+            if (event.button !== 0) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            if (isPlaying) stopPlayback();
+
+            pointerState = {
+                type: 'clip-handle',
+                pointerId: event.pointerId,
+                handle
+            };
+        }
+
         function handleMarkerPointerDown(event, keyframeId) {
             if (event.button !== 0) return;
 
@@ -2835,6 +2948,17 @@
                 sortKeyframes();
                 selectedKeyframeId = keyframe.id;
                 setCurrentTime(nextTime);
+                return;
+            }
+
+            if (pointerState.type === 'clip-handle') {
+                const nextTime = getTimeFromClientX(event.clientX);
+                if (pointerState.handle === 'start') {
+                    clipRange.start = THREE.MathUtils.clamp(roundTime(nextTime), 0, clipRange.end);
+                } else {
+                    clipRange.end = THREE.MathUtils.clamp(roundTime(nextTime), clipRange.start, getAnimationEndTime());
+                }
+                refreshTimelineUi();
             }
         }
 
@@ -2868,6 +2992,91 @@
             if (keyframes.length === 0) return 0;
             sortKeyframes();
             return keyframes[keyframes.length - 1].time;
+        }
+
+        function resetClipRange() {
+            const endTime = getAnimationEndTime();
+            clipRange.start = 0;
+            clipRange.end = endTime;
+        }
+
+        function clampClipRangeToAnimation() {
+            const endTime = getAnimationEndTime();
+            if (endTime <= 0) {
+                clipRange.start = 0;
+                clipRange.end = 0;
+                return;
+            }
+
+            clipRange.start = THREE.MathUtils.clamp(roundTime(clipRange.start), 0, endTime);
+            const currentEnd = Number.isFinite(clipRange.end) ? clipRange.end : endTime;
+            clipRange.end = THREE.MathUtils.clamp(roundTime(currentEnd), clipRange.start, endTime);
+        }
+
+        function clipAnimationToSelection() {
+            if (keyframes.length === 0) {
+                setStatus('Load or record an animation before clipping it.', 'error');
+                return;
+            }
+
+            stopPlayback();
+            pointerState = null;
+
+            clampClipRangeToAnimation();
+
+            const startTime = clipRange.start;
+            const endTime = clipRange.end;
+            const duration = roundTime(Math.max(0, endTime - startTime));
+            const startPose = getPoseStateAtTime(startTime);
+
+            if (!startPose) {
+                setStatus('The clip interval could not be sampled.', 'error');
+                return;
+            }
+
+            const frameMap = new Map();
+            const storeFrame = (time, pose) => {
+                const roundedTime = roundTime(time);
+                frameMap.set(roundedTime.toFixed(1), {
+                    time: roundedTime,
+                    pose: clonePoseState(pose)
+                });
+            };
+
+            storeFrame(0, startPose);
+
+            keyframes.forEach(frame => {
+                if (frame.time > startTime && frame.time < endTime) {
+                    storeFrame(frame.time - startTime, frame.pose);
+                }
+            });
+
+            if (duration > 0) {
+                const endPose = getPoseStateAtTime(endTime);
+                if (endPose) {
+                    storeFrame(duration, endPose);
+                }
+            }
+
+            const nextFrames = Array.from(frameMap.values())
+                .sort((a, b) => a.time - b.time)
+                .map((frame, index) => ({
+                    id: index + 1,
+                    time: frame.time,
+                    pose: frame.pose
+                }));
+
+            keyframes.length = 0;
+            nextFrames.forEach(frame => keyframes.push(frame));
+            selectedKeyframeId = keyframes[0]?.id ?? null;
+            nextKeyframeId = keyframes.length + 1;
+            timelineViewDuration = Math.max(TIMELINE_MIN_DURATION, roundUpTime(getAnimationEndTime() + 0.5));
+
+            const clippedEffects = clipAnimationEffects(activeAnimationEffects, startTime, endTime);
+            resetClipRange();
+            setAnimationEffects(clippedEffects);
+            setCurrentTime(0);
+            setStatus(`Animation clipped to ${formatTime(startTime)}-${formatTime(endTime)} and shifted to start at 0.0s.`, 'success');
         }
 
         function getTimelineDuration() {
@@ -3885,6 +4094,7 @@
         }
 
         function refreshTimelineUi() {
+            clampClipRangeToAnimation();
             const selectedKeyframe = findKeyframeById(selectedKeyframeId);
             ui.keyframeCount.innerText = String(keyframes.length);
             ui.selectedFrame.innerText = selectedKeyframe ? `K${selectedKeyframe.id} @ ${formatTime(selectedKeyframe.time)}` : 'None';
@@ -3892,6 +4102,10 @@
             ui.timeInput.value = currentTime.toFixed(1);
             ui.speedSlider.value = String(playbackSpeed);
             ui.speedValue.innerText = `${playbackSpeed.toFixed(2)}x`;
+            ui.clipAnimationBtn.disabled = keyframes.length === 0;
+            ui.clipAnimationBtn.className = keyframes.length === 0
+                ? "bg-amber-900/40 text-amber-100/50 py-1.5 px-3 rounded-lg text-sm border border-amber-300/10 cursor-not-allowed"
+                : "bg-amber-600/90 hover:bg-amber-500 text-white py-1.5 px-3 rounded-lg transition-colors text-sm border border-amber-300/25";
 
             renderTimeline();
             updatePlayButton();
@@ -3904,9 +4118,28 @@
             const usableWidth = Math.max(0, trackWidth - startOffset * 2);
             const playheadRatio = duration <= 0 ? 0 : currentTime / duration;
             const playheadX = startOffset + usableWidth * THREE.MathUtils.clamp(playheadRatio, 0, 1);
+            const clipStartRatio = duration <= 0 ? 0 : clipRange.start / duration;
+            const clipEndRatio = duration <= 0 ? 0 : clipRange.end / duration;
+            const clipStartX = startOffset + usableWidth * THREE.MathUtils.clamp(clipStartRatio, 0, 1);
+            const clipEndX = startOffset + usableWidth * THREE.MathUtils.clamp(clipEndRatio, 0, 1);
+            const clipWidth = Math.max(0, clipEndX - clipStartX);
 
             ui.timelineFill.style.width = `${Math.max(0, playheadX - startOffset)}px`;
             ui.timelinePlayhead.style.left = `${playheadX}px`;
+            ui.timelineClipBefore.style.left = `${startOffset}px`;
+            ui.timelineClipBefore.style.width = `${Math.max(0, clipStartX - startOffset)}px`;
+            ui.timelineClipRange.style.left = `${clipStartX}px`;
+            ui.timelineClipRange.style.width = `${clipWidth}px`;
+            ui.timelineClipAfter.style.left = `${clipEndX}px`;
+            ui.timelineClipAfter.style.width = `${Math.max(0, startOffset + usableWidth - clipEndX)}px`;
+            ui.timelineClipStart.style.left = `${clipStartX}px`;
+            ui.timelineClipEnd.style.left = `${clipEndX}px`;
+            const showClipHandles = keyframes.length > 0;
+            ui.timelineClipBefore.style.display = showClipHandles ? 'block' : 'none';
+            ui.timelineClipRange.style.display = showClipHandles ? 'block' : 'none';
+            ui.timelineClipAfter.style.display = showClipHandles ? 'block' : 'none';
+            ui.timelineClipStart.style.display = showClipHandles ? 'block' : 'none';
+            ui.timelineClipEnd.style.display = showClipHandles ? 'block' : 'none';
             ui.timelineKeyframes.innerHTML = '';
             ui.timelineEndLabel.innerText = formatTime(duration);
 
