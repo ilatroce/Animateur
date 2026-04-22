@@ -322,6 +322,9 @@ The `Animations/` folder is effectively a starter pack for trying the project.
 | `walking-realistic.animation.json` | 1 | Refined walk sample |
 | `spear.animation.json` | 2 | Two-character spear interaction sample |
 | `spear-realistic.animation.json` | 2 | Refined two-character spear interaction |
+| `powerbomb-realistic.animation.json` | 2 | Two-character powerbomb with level change, lift, shoulder stack, drop, impact, and recoil beats |
+| `powerbomb-impact-realistic.animation.json` | 2 | More physical powerbomb variant with stronger footwork, lift acceleration, snap-down timing, impact compression, and rebound |
+| `two-character-fight.animation.json` | 2 | Two-character hand-to-hand fight with approach, block, counter, kick, and reset beats |
 | `summoning-magic.animation.json` | 1 | Demonstrates the built-in `arcane-summon` animation effect metadata |
 
 ### How To Use The Samples

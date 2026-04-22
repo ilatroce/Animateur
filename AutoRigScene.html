@@ -577,6 +577,9 @@
             { id: 'sample:spinningslash-overdrive', label: 'Bundled / Spinning Slash Overdrive', file: './Animations/spinningslash-overdrive.animation.json' },
             { id: 'sample:spear', label: 'Bundled / Spear Duel', file: './Animations/spear.animation.json' },
             { id: 'sample:spear-realistic', label: 'Bundled / Spear Duel Realistic', file: './Animations/spear-realistic.animation.json' },
+            { id: 'sample:powerbomb-realistic', label: 'Bundled / Powerbomb Realistic', file: './Animations/powerbomb-realistic.animation.json' },
+            { id: 'sample:powerbomb-impact-realistic', label: 'Bundled / Powerbomb Impact Realistic', file: './Animations/powerbomb-impact-realistic.animation.json' },
+            { id: 'sample:two-character-fight', label: 'Bundled / Two Character Fight', file: './Animations/two-character-fight.animation.json' },
             { id: 'sample:summon', label: 'Bundled / Summoning Magic', file: './Animations/summoning-magic.animation.json' }
         ];
         const DEFAULT_COLORS = ['#77f7ff', '#ffcc78', '#9bf0a8', '#ff9eb0', '#b4a3ff', '#f7f2a1'];
@@ -603,6 +606,17 @@
             { baseName: 'Right_Foot', parent: 'Right_Lower_Leg', position: [0, -1.05, 0.18], quaternion: [0, 0, 0, 1] }
         ];
         const JOINT_COUNT = JOINT_LAYOUT.length;
+        const MODEL_JOINT_PARENT_OVERRIDES = {
+            Left_Upper_Arm: 'Left_Shoulder',
+            Right_Upper_Arm: 'Right_Shoulder'
+        };
+        const MODEL_ORIENTED_BONE_TARGETS = {
+            Left_Upper_Arm: 'Left_Lower_Arm',
+            Left_Lower_Arm: 'Left_Hand',
+            Right_Upper_Arm: 'Right_Lower_Arm',
+            Right_Lower_Arm: 'Right_Hand'
+        };
+        const MODEL_LIMB_LOCAL_AXIS = new THREE.Vector3(0, -1, 0);
         const SEGMENT_LAYOUT = [
             { bone: 'Hips', parent: null, child: null, size: [1.0, 0.42, 0.6], anchor: 'center', length: 0.42, divisions: 1, blend: 0 },
             { bone: 'Spine', parent: 'Hips', child: 'Head', size: [0.9, 1.2, 0.5], anchor: 'positive', length: 1.2, divisions: 6, blend: 0.24 },
@@ -1558,7 +1572,7 @@
 
             const fitMatrix = computeModelFitMatrix(modelAsset.bounds);
             const restData = inferModelRestData(modelAsset, fitMatrix);
-            const { rootBone, orderedBones } = createBoneHierarchy(characterIndex, restData.localPose);
+            const { rootBone, orderedBones } = createBoneHierarchy(characterIndex, restData.localPose, restData.parentOverrides);
             group.add(rootBone);
             group.updateWorldMatrix(true, true);
             const skeleton = new THREE.Skeleton(orderedBones);
@@ -1733,8 +1747,9 @@
 
             return {
                 absolutePose,
-                localPose: createLocalRestPose(absolutePose),
-                skinSegments: createRestSkinSegments(absolutePose)
+                localPose: createLocalRestPose(absolutePose, MODEL_JOINT_PARENT_OVERRIDES, MODEL_ORIENTED_BONE_TARGETS),
+                skinSegments: createRestSkinSegments(absolutePose),
+                parentOverrides: MODEL_JOINT_PARENT_OVERRIDES
             };
         }
 
@@ -2028,23 +2043,53 @@
             };
         }
 
-        function createLocalRestPose(absolutePose) {
+        function createLocalRestPose(absolutePose, parentOverrides = null, orientedBoneTargets = null) {
             const localPose = {};
+            const worldQuaternions = {};
 
             JOINT_LAYOUT.forEach(joint => {
                 const absolute = absolutePose[joint.baseName];
-                const local = absolute.clone();
-                if (joint.parent && absolutePose[joint.parent]) {
-                    local.sub(absolutePose[joint.parent]);
+                const parentName = getJointParentName(joint, parentOverrides);
+                const parentAbsolute = parentName ? absolutePose[parentName] : null;
+                const parentWorldQuaternion = parentName && worldQuaternions[parentName]
+                    ? worldQuaternions[parentName]
+                    : new THREE.Quaternion();
+                const parentWorldInverse = parentWorldQuaternion.clone().invert();
+                const localPosition = absolute.clone();
+
+                if (parentAbsolute) {
+                    localPosition.sub(parentAbsolute).applyQuaternion(parentWorldInverse);
                 }
 
+                const targetName = orientedBoneTargets?.[joint.baseName];
+                const worldQuaternion = targetName && absolutePose[targetName]
+                    ? createBoneWorldQuaternion(absolute, absolutePose[targetName], parentWorldQuaternion, joint.quaternion)
+                    : parentWorldQuaternion.clone().multiply(new THREE.Quaternion().fromArray(joint.quaternion).normalize());
+                const localQuaternion = parentWorldInverse.multiply(worldQuaternion).normalize();
+
                 localPose[joint.baseName] = {
-                    position: [local.x, local.y, local.z],
-                    quaternion: joint.quaternion.slice()
+                    position: [localPosition.x, localPosition.y, localPosition.z],
+                    quaternion: [localQuaternion.x, localQuaternion.y, localQuaternion.z, localQuaternion.w]
                 };
+                worldQuaternions[joint.baseName] = worldQuaternion;
             });
 
             return localPose;
+        }
+
+        function getJointParentName(joint, parentOverrides = null) {
+            return parentOverrides?.[joint.baseName] || joint.parent;
+        }
+
+        function createBoneWorldQuaternion(start, end, parentWorldQuaternion, fallbackQuaternion) {
+            const direction = end.clone().sub(start);
+            if (direction.lengthSq() <= 0.000001) {
+                return parentWorldQuaternion.clone().multiply(new THREE.Quaternion().fromArray(fallbackQuaternion).normalize());
+            }
+
+            return new THREE.Quaternion()
+                .setFromUnitVectors(MODEL_LIMB_LOCAL_AXIS, direction.normalize())
+                .normalize();
         }
 
         function createRestSkinSegments(absolutePose) {
@@ -2245,7 +2290,7 @@
             return String(value || fallback).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || fallback;
         }
 
-        function createBoneHierarchy(characterIndex, restPose = null) {
+        function createBoneHierarchy(characterIndex, restPose = null, parentOverrides = null) {
             const bonesByName = new Map();
             let rootBone = null;
 
@@ -2257,8 +2302,9 @@
                 bone.quaternion.fromArray(restJoint?.quaternion || joint.quaternion);
                 bonesByName.set(bone.name, bone);
 
-                if (joint.parent) {
-                    bonesByName.get(`${joint.parent}_${characterIndex}`).add(bone);
+                const parentName = getJointParentName(joint, parentOverrides);
+                if (parentName) {
+                    bonesByName.get(`${parentName}_${characterIndex}`).add(bone);
                 } else {
                     rootBone = bone;
                 }
@@ -2373,6 +2419,9 @@
                     const restJoint = restPose?.[joint.baseName];
                     const firstJoint = firstFrame.pose[jointName];
                     const firstPosition = firstJoint?.position || joint.position;
+                    const restQuaternion = new THREE.Quaternion()
+                        .fromArray(restJoint?.quaternion || joint.quaternion)
+                        .normalize();
                     const referenceQuaternion = new THREE.Quaternion()
                         .fromArray(restJoint ? joint.quaternion : (firstJoint?.quaternion || joint.quaternion))
                         .normalize();
@@ -2397,7 +2446,13 @@
                                 .fromArray(jointState.quaternion)
                                 .normalize()
                                 .multiply(inverseReferenceQuaternion);
-                            quaternions.push(deltaQuaternion.x, deltaQuaternion.y, deltaQuaternion.z, deltaQuaternion.w);
+                            const retargetedQuaternion = restQuaternion.clone().multiply(deltaQuaternion).normalize();
+                            quaternions.push(
+                                retargetedQuaternion.x,
+                                retargetedQuaternion.y,
+                                retargetedQuaternion.z,
+                                retargetedQuaternion.w
+                            );
                         } else {
                             positions.push(...jointState.position);
                             quaternions.push(...jointState.quaternion);

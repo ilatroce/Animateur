@@ -202,7 +202,7 @@
                 <p class="lede">
                     Wander with the player, let walk cycles reshuffle while moving, fire random acrobatic moves with
                     <strong>Space</strong>, cast the summon with <strong>H</strong>, and use <strong>E</strong> near NPCs for the
-                    two-character spear interactions.
+                    two-character interaction clips.
                 </p>
 
                 <div class="controls">
@@ -290,6 +290,9 @@
             { file: 'spinningslash-overdrive.animation.json', group: 'jump' },
             { file: 'spear.animation.json', group: 'interaction' },
             { file: 'spear-realistic.animation.json', group: 'interaction' },
+            { file: 'powerbomb-realistic.animation.json', group: 'interaction' },
+            { file: 'powerbomb-impact-realistic.animation.json', group: 'interaction' },
+            { file: 'two-character-fight.animation.json', group: 'interaction' },
             { file: 'summoning-magic.animation.json', group: 'summon' }
         ];
         const ACTION_MOTION_SCALES = {
@@ -1231,7 +1234,7 @@
                 ui.interactionHint.textContent = 'Action in progress';
             } else if (nearbyNpcCount > 0) {
                 ui.interactionHint.textContent = nearbyNpcCount === 1
-                    ? 'Press E for the nearby spear interaction'
+                    ? 'Press E for the nearby interaction'
                     : `Press E for a random nearby interaction (${nearbyNpcCount} NPCs)`;
             } else {
                 ui.interactionHint.textContent = 'Move closer to an NPC for E interactions';
