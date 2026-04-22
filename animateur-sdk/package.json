@@ -1,0 +1,36 @@
+{
+  "name": "@openclaw/animateur-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for authoring Animateur Fast Poser pose and animation assets.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./ik": {
+      "types": "./dist/ik.d.ts",
+      "import": "./dist/ik.js"
+    },
+    "./math": {
+      "types": "./dist/math.d.ts",
+      "import": "./dist/math.js"
+    }
+  },
+  "files": [
+    "dist",
+    "generated",
+    "fast-poser-asset.schema.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "test:sdk": "npm run build && node --test tests/test_animateur_sdk.mjs",
+    "test": "npm run test:sdk"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
