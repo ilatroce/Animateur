@@ -101,7 +101,7 @@
                             Share a screen with a playing video, let MediaPipe read the performer, then record a Fast Poser animation you can import back into the main scene.
                         </p>
                     </div>
-                    <a href="./Index.html" class="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/10">Back To Poser</a>
+                    <a href="./index.html" class="inline-flex shrink-0 items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/10">Back To Poser</a>
                 </div>
 
                 <div class="mt-5 space-y-3">
@@ -307,7 +307,7 @@
                             <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Rig Preview</p>
                             <h2 class="mt-1 text-lg font-semibold text-white">Mapped Character</h2>
                         </div>
-                        <a href="./Index.html" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/10">
+                    <a href="./index.html" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/10">
                             Open Index
                         </a>
                     </div>
@@ -2256,7 +2256,7 @@
             try {
                 const asset = createAnimationAsset();
                 downloadAssetFile(asset);
-                setStatus(`Animation "${asset.name}" exported as JSON. Import it from the main Index.html animation library.`, 'success');
+            setStatus(`Animation "${asset.name}" exported as JSON. Import it from the main index.html animation library.`, 'success');
             } catch (error) {
                 setStatus(error instanceof Error ? error.message : 'Could not export the animation.', 'error');
             }
@@ -2276,7 +2276,7 @@
 
                 safeLibrary.unshift(asset);
                 window.localStorage.setItem(MAIN_ANIMATION_STORAGE_KEY, JSON.stringify(safeLibrary));
-                setStatus(`Animation "${asset.name}" was saved into the shared browser library. Open Index.html and load it from Animation Library.`, 'success');
+            setStatus(`Animation "${asset.name}" was saved into the shared browser library. Open index.html and load it from Animation Library.`, 'success');
             } catch (error) {
                 console.error(error);
                 setStatus('Could not save into the shared browser library. Use Export JSON instead.', 'error');

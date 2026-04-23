@@ -1,6 +1,6 @@
 ---
 name: animateur
-description: Work with the Animateur/Animator static browser 3D animation toolset. Use when an agent needs to run, inspect, modify, test, or explain Fast Poser (`Index.html`), Motion Ripper (`ripper.html`), Playground (`Playground.html`), Auto Rig Scene (`AutoRigScene.html`), bundled `Animations/*.animation.json` assets, shared browser libraries, animation/pose JSON interchange, MediaPipe capture, Three.js scenes, or GLB auto-rig export behavior.
+description: Work with the Animateur/Animator browser 3D animation toolset. Use when an agent needs to run, inspect, modify, test, or explain Fast Poser (`index.html`), Motion Ripper (`ripper.html`), Playground (`Playground.html`), Auto Rig Scene (`AutoRigScene.html`), bundled `Animations/*.animation.json` assets, shared browser libraries, animation/pose JSON interchange, MediaPipe capture, Three.js scenes, or GLB auto-rig export behavior.
 ---
 
 # Animateur
@@ -9,31 +9,32 @@ description: Work with the Animateur/Animator static browser 3D animation toolse
 
 Read `README.md` for complete user-facing workflows, then identify which page owns the requested behavior:
 
-- `Index.html`: Fast Poser, the main manual posing, scene staging, timeline, pose library, and animation library editor.
+- `index.html`: Fast Poser, the main manual posing, scene staging, timeline, pose library, and animation library editor.
 - `ripper.html`: Motion Ripper, the screen-share and MediaPipe pose-capture tool that saves Fast Poser-compatible animation JSON.
 - `Playground.html`: runtime arena for testing bundled/imported clips, player actions, NPC interactions, and summon effects.
 - `AutoRigScene.html`: auto-rig preview/export tool that turns compatible animation JSON plus generated cubes or imported meshes into skinned GLB exports.
 - `Animations/`: bundled `.animation.json` samples used by Playground, Auto Rig Scene, and manual imports.
 - `3D models/`: local model assets exposed by Auto Rig Scene.
 
-This repo is a no-build static site. There is no backend, package install, bundler, or formal test runner.
+This repo uses a small Vite build for deployment, but it still has no backend and no formal automated test runner.
 
 ## Run The App
 
-Serve the repository root through a local static server so fetches, CDN imports, screen sharing, and same-origin `localStorage` work correctly.
+Install dependencies once, then run the Vite dev server so fetches, CDN imports, screen sharing, and same-origin `localStorage` work correctly.
 
 Useful commands:
 
 ```powershell
-python -m http.server 8000
+npm install
+npm run dev
 ```
 
 Open the exact page names:
 
-- `http://localhost:8000/Index.html`
-- `http://localhost:8000/ripper.html`
-- `http://localhost:8000/Playground.html`
-- `http://localhost:8000/AutoRigScene.html`
+- `http://localhost:PORT/`
+- `http://localhost:PORT/ripper.html`
+- `http://localhost:PORT/Playground.html`
+- `http://localhost:PORT/AutoRigScene.html`
 
 Use the same browser and origin when testing shared libraries. Fast Poser uses `fast-poser:pose-library` and `fast-poser:animation-library`; Motion Ripper and Auto Rig Scene read/write the animation library key.
 
@@ -136,7 +137,7 @@ When adding or editing bundled animations:
 
 There is no automated suite. Validate in the browser according to the touched surface:
 
-- Fast Poser: load `Index.html`, add/select a character, record keyframes, play, save/export/import an animation, and check the timeline.
+- Fast Poser: load `index.html`, add/select a character, record keyframes, play, save/export/import an animation, and check the timeline.
 - Motion Ripper: load `ripper.html`, confirm MediaPipe initializes or shows a useful error, and verify captured/exported JSON imports into Fast Poser.
 - Playground: load `Playground.html`, confirm bundled assets fetch, move with `WASD`, trigger `Space`, `H`, and `E`, and check console errors.
 - Auto Rig Scene: load `AutoRigScene.html`, build a bundled clip, scrub/play it, toggle mesh/rig helpers, import a JSON clip if relevant, and test GLB export when export code changed.

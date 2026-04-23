@@ -2,7 +2,7 @@
 
 Animator is a browser-based 3D posing, lightweight animation, runtime preview, and export sandbox made of four connected tools:
 
-- `Index.html`: the main editor, labeled in the UI as **Fast Poser**
+- `index.html`: the main editor, labeled in the UI as **Fast Poser**
 - `ripper.html`: a motion-capture helper, labeled in the UI as **Motion Ripper**
 - `Playground.html`: a playable runtime test scene, labeled in the UI as **Playground**
 - `AutoRigScene.html`: a skinned rig preview and export helper, labeled in the UI as **Auto Rig Scene**
@@ -32,7 +32,7 @@ Animator gives you a quick way to do all of the following without leaving the br
 
 | Path | Purpose |
 | --- | --- |
-| `Index.html` | Main Fast Poser app for manual posing, scene staging, timeline editing, and asset library management |
+| `index.html` | Main Fast Poser app for manual posing, scene staging, timeline editing, and asset library management |
 | `ripper.html` | Motion Ripper app for screen-share pose tracking and animation capture |
 | `Playground.html` | Runtime test arena for trying walk, action, interaction, and summon clips in a playable scene |
 | `AutoRigScene.html` | Auto Rig Scene app for building a generated cube rig or auto-weighted imported 3D model from a Fast Poser animation and exporting GLB |
@@ -43,7 +43,7 @@ Animator gives you a quick way to do all of the following without leaving the br
 
 ```mermaid
 flowchart LR
-    A["Fast Poser<br/>Index.html"] --> B["Save pose to browser library"]
+    A["Fast Poser<br/>index.html"] --> B["Save pose to browser library"]
     A --> C["Save animation to browser library"]
     A --> D["Export .pose.json / .animation.json"]
     E["Motion Ripper<br/>ripper.html"] --> F["Track reference video with MediaPipe"]
@@ -61,7 +61,7 @@ flowchart LR
 
 The normal workflow is:
 
-1. Open `Index.html` to pose characters and work on the timeline.
+1. Open `index.html` to pose characters and work on the timeline.
 2. Open `ripper.html` when you want to pull motion from a reference video.
 3. Save or export a captured clip from Motion Ripper.
 4. Load that clip back into Fast Poser to preview, edit, combine, or re-export it.
@@ -79,7 +79,7 @@ Why this is recommended:
 - the browser tools rely on browser APIs and bundled frontend dependencies
 - Motion Ripper needs screen-sharing support
 - the shared pose and animation libraries use `localStorage`, so using the same origin matters
-- `Index.html` has an uppercase `I`, which is safer to open explicitly than relying on a host to guess the entry file
+- the main editor lives at `index.html`, so the host root URL can open it directly
 - the Fast Poser dev server watches `Animations/**/*.json` and hot-reloads changed pose or animation assets into the running editor
 
 ### Open The Project
@@ -93,7 +93,7 @@ npm run dev
 
 Then visit:
 
-- `http://localhost:PORT/Index.html`
+- `http://localhost:PORT/`
 - `http://localhost:PORT/ripper.html`
 - `http://localhost:PORT/Playground.html`
 - `http://localhost:PORT/AutoRigScene.html`
@@ -101,13 +101,13 @@ Then visit:
 Useful scripts:
 
 - `npm run dev`: serves the editor and companion pages locally
-- `npm run build`: typechecks and builds Fast Poser into `dist/`
+- `npm run build`: typechecks and builds the deployable site into `dist/`
 - `npm run preview`: serves the production build
 
 ### Important Notes
 
-- Open `Index.html` with the exact casing shown here, especially on case-sensitive hosts.
-- Use the same browser and the same origin for `Index.html`, `ripper.html`, and `AutoRigScene.html` if you want the shared browser animation library to work.
+- Open the main editor at `index.html` or the site root.
+- Use the same browser and the same origin for `index.html`, `ripper.html`, and `AutoRigScene.html` if you want the shared browser animation library to work.
 - Motion Ripper depends on MediaPipe assets loaded from the internet, so an offline browser session will not fully work.
 - Playground and Auto Rig Scene load bundled sample animation files from `Animations/`, so serve the whole repository folder rather than a single file.
 
@@ -224,7 +224,7 @@ Motion Ripper is the capture side of the repo. Instead of hand-posing a rig, you
 | Neutral capture | Stores the baseline body position used for root motion | Click `Set Neutral` once tracking is stable |
 | Start Record / Stop Record | Begins and ends keyframe capture | Click `Start Record`, play the reference, then click again to stop |
 | Clear Capture | Clears recorded frames and resets the preview character | Click `Clear Capture` |
-| Save To Library | Saves the resulting animation into the same browser animation library used by Fast Poser | Click `Save To Library`, then open `Index.html` in the same browser |
+| Save To Library | Saves the resulting animation into the same browser animation library used by Fast Poser | Click `Save To Library`, then open `index.html` in the same browser |
 | Export JSON | Downloads the recorded animation as a `.animation.json` file | Click `Export JSON` |
 
 ### Practical Motion Ripper Workflow
@@ -286,7 +286,7 @@ Auto Rig Scene is the export side of the repo. It takes Fast Poser-compatible an
 | Feature | What It Does | How To Use It |
 | --- | --- | --- |
 | Bundled clip catalog | Lists sample animation files from `Animations/` | Open `AutoRigScene.html` |
-| Browser library loading | Reads clips saved by Fast Poser or Motion Ripper from `localStorage` | Use the same browser and origin as `Index.html` |
+| Browser library loading | Reads clips saved by Fast Poser or Motion Ripper from `localStorage` | Use the same browser and origin as `index.html` |
 | Import JSON | Adds a local `.animation.json` file to the rig builder | Click `Import JSON` and choose a file |
 | 3D model import | Loads OBJ, GLB, GLTF, or FBX character meshes for auto skinning | Click `Import Model` and choose the model file; include MTL, BIN, and texture files when the format references them |
 | 3D models folder source | Exposes the included Tripo OBJ from `3D models/` as a selectable mesh source | Choose `3D Models / Tripo OBJ` in the mesh source dropdown |
@@ -337,7 +337,7 @@ The `Animations/` folder is effectively a starter pack for trying the project.
 
 ### How To Use The Samples
 
-1. Open `Index.html`.
+1. Open `index.html`.
 2. In the `Animation Library` section, click `Import Anim`.
 3. Choose any file from `Animations/`.
 4. The animation is added to the browser library and loaded immediately.
@@ -481,7 +481,7 @@ Track the performer until the skeleton is stable, then click `Set Neutral` befor
 
 ### The host root URL does not open the app automatically
 
-This repo uses `Index.html` with an uppercase `I`. On some hosts you may need to navigate directly to `/Index.html`, or rename the file as a future cleanup.
+This repo now uses `index.html` as the main entry, so the site root should open Fast Poser directly. If it does not, make sure your host is serving the built `dist/` directory rather than the raw repository root.
 
 ## Best Use Cases
 

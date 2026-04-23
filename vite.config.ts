@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, type Plugin, type ResolvedConfig } from 'vite';
 
 function animationJsonHotReload(): Plugin {
   const animationDir = path.resolve(__dirname, 'Animations');
@@ -27,14 +27,40 @@ function animationJsonHotReload(): Plugin {
   };
 }
 
+function copyStaticAssets(entries: string[]): Plugin {
+  let resolvedConfig: ResolvedConfig | null = null;
+
+  return {
+    name: 'animateur-copy-static-assets',
+    apply: 'build',
+    configResolved(config) {
+      resolvedConfig = config;
+    },
+    async writeBundle() {
+      if (!resolvedConfig) return;
+
+      const outDir = path.resolve(resolvedConfig.root, resolvedConfig.build.outDir);
+
+      await Promise.all(
+        entries.map(async entry => {
+          const source = path.resolve(resolvedConfig.root, entry);
+          const target = path.resolve(outDir, entry);
+          await fs.cp(source, target, { recursive: true, force: true });
+        })
+      );
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [animationJsonHotReload()],
+  plugins: [animationJsonHotReload(), copyStaticAssets(['Animations', '3D models'])],
   build: {
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'Index.html'),
+        main: path.resolve(__dirname, 'index.html'),
         playground: path.resolve(__dirname, 'Playground.html'),
-        autoRigScene: path.resolve(__dirname, 'AutoRigScene.html')
+        autoRigScene: path.resolve(__dirname, 'AutoRigScene.html'),
+        ripper: path.resolve(__dirname, 'ripper.html')
       }
     }
   }
