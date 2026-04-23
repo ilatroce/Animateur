@@ -1,6 +1,16 @@
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { defineConfig, type Plugin, type ResolvedConfig } from 'vite';
+
+const MAIN_ENTRY_CANDIDATES = ['index.html', 'Index.html'] as const;
+const mainEntryPath = MAIN_ENTRY_CANDIDATES
+  .map(entry => path.resolve(__dirname, entry))
+  .find(entryPath => existsSync(entryPath));
+
+if (!mainEntryPath) {
+  throw new Error('Could not find a main HTML entry. Expected index.html or Index.html.');
+}
 
 function animationJsonHotReload(): Plugin {
   const animationDir = path.resolve(__dirname, 'Animations');
@@ -52,12 +62,52 @@ function copyStaticAssets(entries: string[]): Plugin {
   };
 }
 
+function aliasMainHtmlEntries(entryNames: readonly string[]): Plugin {
+  let resolvedConfig: ResolvedConfig | null = null;
+
+  return {
+    name: 'animateur-alias-main-html-entries',
+    apply: 'build',
+    configResolved(config) {
+      resolvedConfig = config;
+    },
+    async writeBundle() {
+      if (!resolvedConfig) return;
+
+      const outDir = path.resolve(resolvedConfig.root, resolvedConfig.build.outDir);
+      let sourceFile: string | null = null;
+
+      for (const entryName of entryNames) {
+        const candidate = path.join(outDir, entryName);
+        if (existsSync(candidate)) {
+          sourceFile = candidate;
+          break;
+        }
+      }
+
+      if (!sourceFile) return;
+
+      await Promise.all(
+        entryNames.map(async entryName => {
+          const target = path.join(outDir, entryName);
+          if (target.toLowerCase() === sourceFile!.toLowerCase()) return;
+          await fs.copyFile(sourceFile!, target);
+        })
+      );
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [animationJsonHotReload(), copyStaticAssets(['Animations', '3D models'])],
+  plugins: [
+    animationJsonHotReload(),
+    copyStaticAssets(['Animations', '3D models']),
+    aliasMainHtmlEntries(MAIN_ENTRY_CANDIDATES)
+  ],
   build: {
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'index.html'),
+        main: mainEntryPath,
         playground: path.resolve(__dirname, 'Playground.html'),
         autoRigScene: path.resolve(__dirname, 'AutoRigScene.html'),
         ripper: path.resolve(__dirname, 'ripper.html')
