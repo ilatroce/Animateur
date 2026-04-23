@@ -1,0 +1,209 @@
+@import './legacy.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 18% 8%;
+    --foreground: 210 20% 96%;
+    --card: 220 15% 12%;
+    --card-foreground: 210 20% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 220 12% 18%;
+    --muted-foreground: 220 8% 66%;
+    --accent: 190 90% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 12% 24%;
+    --input: 220 12% 22%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+  }
+
+  *,
+  ::before,
+  ::after {
+    transition-duration: 50ms;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+  }
+
+  option {
+    @apply bg-card text-card-foreground;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply fixed inset-0 z-10 flex flex-col justify-between p-4 pointer-events-none;
+  }
+
+  .app-topbar {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .side-panel {
+    @apply w-[17.5rem] max-h-[calc(100vh-2rem)] overflow-y-auto p-0 text-card-foreground;
+  }
+
+  .right-panel-stack {
+    @apply ml-auto flex w-[17.5rem] flex-col items-stretch gap-3;
+  }
+
+  .selection-pill {
+    @apply hidden rounded-md border border-border bg-card/95 px-3 py-2 text-sm shadow-xl backdrop-blur-md;
+  }
+
+  .timeline-panel {
+    @apply absolute bottom-4 left-4 right-4 rounded-lg border border-border bg-card/95 p-3 shadow-2xl backdrop-blur-md;
+  }
+
+  .app-title {
+    @apply mb-1 flex items-center gap-2 text-sm font-semibold tracking-normal text-foreground;
+  }
+
+  .hint {
+    @apply mb-3 text-xs leading-5 text-muted-foreground;
+  }
+
+  .toolbar-grid {
+    @apply grid grid-cols-2 gap-2;
+  }
+
+  .toolbar-row {
+    @apply flex gap-2;
+  }
+
+  .control-stack {
+    @apply space-y-3;
+  }
+
+  .section-panel {
+    @apply rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md;
+  }
+
+  .control-panel {
+    @apply rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md;
+  }
+
+  .control-panel-muted {
+    @apply rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md;
+  }
+
+  .control-panel-cyan {
+    @apply rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md;
+  }
+
+  .control-panel-amber {
+    @apply rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md;
+  }
+
+  .control-panel-emerald {
+    @apply rounded-lg border border-border bg-card/95 p-3 shadow-xl backdrop-blur-md;
+  }
+
+  .panel-header {
+    @apply mb-2 flex items-center justify-between gap-2;
+  }
+
+  .panel-heading {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+
+  .panel-note {
+    @apply text-[10px] text-muted-foreground;
+  }
+
+  .field-label {
+    @apply space-y-1 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground;
+  }
+
+  .control-input {
+    @apply w-full rounded-md border border-input bg-background/70 px-2 py-1.5 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-ring;
+  }
+
+  .control-select {
+    @apply min-w-0 rounded-md border border-input bg-background/70 px-2 py-1.5 text-xs text-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-ring;
+  }
+
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-sm {
+    @apply h-7 px-2 text-[11px];
+  }
+
+  .btn-lg {
+    @apply h-9 px-4 text-sm;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+
+  .btn-secondary {
+    @apply border border-border bg-secondary text-secondary-foreground hover:bg-muted;
+  }
+
+  .btn-record {
+    @apply border border-red-400/45 bg-red-500 text-white hover:bg-red-400;
+  }
+
+  .btn-destructive {
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
+  }
+
+  .btn-ghost-destructive {
+    @apply border border-border bg-secondary text-secondary-foreground hover:bg-muted;
+  }
+
+  .btn-active {
+    @apply border border-border bg-secondary text-foreground hover:bg-muted;
+  }
+
+  .btn-inactive {
+    @apply border border-border bg-secondary text-muted-foreground hover:bg-muted;
+  }
+
+  .btn-disabled-amber {
+    @apply cursor-not-allowed border border-border bg-secondary/60 text-muted-foreground;
+  }
+
+  .timeline-action-button {
+    @apply h-8 w-36 px-3 text-xs;
+  }
+
+  .status-text {
+    @apply min-h-10 text-xs leading-5 text-muted-foreground;
+  }
+
+  .status-success {
+    @apply text-emerald-300;
+  }
+
+  .status-error {
+    @apply text-rose-300;
+  }
+
+  .timeline-stat {
+    @apply text-sm text-muted-foreground;
+  }
+}
