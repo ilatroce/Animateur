@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+animateur-sdk/node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Local dev and browser artifacts
+.edge-headless/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and OS noise
+.env
+.env.*
+.DS_Store

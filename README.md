@@ -9,7 +9,7 @@ Animator is a browser-based 3D posing, lightweight animation, runtime preview, a
 
 The project is designed for fast previs and experimentation rather than full character animation production. You can manually pose simple box-rig characters, build keyframed animations, save reusable poses and timelines, import and export JSON assets, generate new animation clips from reference video by using browser screen sharing plus MediaPipe pose tracking, test those clips in a small playable arena, and convert them into simple skinned GLB exports.
 
-There is no build step, no backend, and no package install. The repo is a static site that runs directly in a modern browser.
+Fast Poser now uses a small Vite + TypeScript + Tailwind build so its HTML, styling, and application logic stay separate. The companion tools are still plain browser pages, and Vite serves the whole repo so they can share the same origin.
 
 ## What This Project Does
 
@@ -72,30 +72,37 @@ The normal workflow is:
 
 ### Recommended Way To Run It
 
-Serve the repository through a simple local static web server and open the pages in the same browser.
+Install dependencies once, run the Vite dev server, and open the pages in the same browser.
 
 Why this is recommended:
 
-- the browser tools rely on browser APIs and CDN-loaded dependencies
+- the browser tools rely on browser APIs and bundled frontend dependencies
 - Motion Ripper needs screen-sharing support
 - the shared pose and animation libraries use `localStorage`, so using the same origin matters
 - `Index.html` has an uppercase `I`, which is safer to open explicitly than relying on a host to guess the entry file
+- the Fast Poser dev server watches `Animations/**/*.json` and hot-reloads changed pose or animation assets into the running editor
 
 ### Open The Project
 
-Use any static server you like, then visit:
+From the repo root:
+
+```bash
+npm install
+npm run dev
+```
+
+Then visit:
 
 - `http://localhost:PORT/Index.html`
 - `http://localhost:PORT/ripper.html`
 - `http://localhost:PORT/Playground.html`
 - `http://localhost:PORT/AutoRigScene.html`
 
-Common ways to serve the folder:
+Useful scripts:
 
-- VS Code Live Server
-- `npx serve .`
-- `python -m http.server 8000`
-- any equivalent static host or local server
+- `npm run dev`: serves the editor and companion pages locally
+- `npm run build`: typechecks and builds Fast Poser into `dist/`
+- `npm run preview`: serves the production build
 
 ### Important Notes
 
@@ -313,7 +320,7 @@ The `Animations/` folder is effectively a starter pack for trying the project.
 | --- | --- | --- |
 | `forwardflip.animation.json` | 1 | Single-character flip sample |
 | `forwardflip-realistic.animation.json` | 1 | Refined single-character flip sample |
-| `slash-realistic.animation.json` | 1 | Dynamic single-character sword slash with anticipation, impact, and recovery |
+| `slash.animation.json` | 1 | Dynamic single-character sword slash with anticipation, impact, and recovery |
 | `spinningkick.animation.json` | 1 | Single-character kick sample |
 | `spinningkick-realistic.animation.json` | 1 | Refined kick sample |
 | `spinningslash.animation.json` | 1 | Single-character spinning blade slash with an attached weapon |
@@ -322,8 +329,9 @@ The `Animations/` folder is effectively a starter pack for trying the project.
 | `walking-realistic.animation.json` | 1 | Refined walk sample |
 | `spear.animation.json` | 2 | Two-character spear interaction sample |
 | `spear-realistic.animation.json` | 2 | Refined two-character spear interaction |
-| `powerbomb-realistic.animation.json` | 2 | Two-character powerbomb with level change, lift, shoulder stack, drop, impact, and recoil beats |
-| `powerbomb-impact-realistic.animation.json` | 2 | More physical powerbomb variant with stronger footwork, lift acceleration, snap-down timing, impact compression, and rebound |
+| `powerbomb.animation.json` | 2 | Two-character powerbomb with level change, lift, shoulder stack, drop, impact, and recoil beats |
+| `powerbombv2.animation.json` | 2 | More physical powerbomb variant with stronger footwork, lift acceleration, snap-down timing, impact compression, and rebound |
+| `powerbombin3.animation.json` | 3 | Three-character powerbomb setup sample |
 | `two-character-fight.animation.json` | 2 | Two-character hand-to-hand fight with approach, block, counter, kick, and reset beats |
 | `summoning-magic.animation.json` | 1 | Demonstrates the built-in `arcane-summon` animation effect metadata |
 
@@ -428,9 +436,9 @@ At the moment, the runtime can play these effects when they are present in an im
 
 ## Technical Stack
 
-- HTML with inline JavaScript modules
+- Vite-served HTML with JavaScript and TypeScript modules
 - [Three.js](https://threejs.org/) for 3D rendering, controls, lighting, and rig transforms
-- [Tailwind CSS CDN](https://tailwindcss.com/) for the UI styling
+- [Tailwind CSS](https://tailwindcss.com/) for the Fast Poser UI styling
 - [MediaPipe Tasks Vision Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) for Motion Ripper pose tracking
 - Browser `localStorage` for pose and animation libraries
 - Browser file APIs and blob downloads for import/export
