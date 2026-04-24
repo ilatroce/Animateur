@@ -5,8 +5,12 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/Index.html",
-      "destination": "/"
+      "source": "/",
+      "destination": "/Index.html"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/Index.html"
     }
   ]
 }
