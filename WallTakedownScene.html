@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wall Takedown Scene</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: "Segoe UI", system-ui, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(30, 64, 175, 0.24), transparent 32%),
+                radial-gradient(circle at top right, rgba(13, 148, 136, 0.2), transparent 26%),
+                linear-gradient(180deg, #050816 0%, #081320 54%, #04060a 100%);
+            color: #e2e8f0;
+        }
+
+        #canvas-root {
+            position: fixed;
+            inset: 0;
+        }
+
+        #hud {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            width: min(360px, calc(100vw - 36px));
+            z-index: 10;
+        }
+
+        .panel {
+            background: rgba(8, 15, 29, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 24px;
+            box-shadow: 0 24px 60px rgba(2, 6, 23, 0.42);
+            backdrop-filter: blur(18px);
+            padding: 18px 18px 16px;
+        }
+
+        .eyebrow {
+            margin: 0;
+            font-size: 11px;
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            color: #7dd3fc;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 8px 0 10px;
+            font-size: 30px;
+            line-height: 1.05;
+        }
+
+        .lede {
+            margin: 0;
+            color: #cbd5e1;
+            line-height: 1.55;
+            font-size: 14px;
+        }
+
+        .controls,
+        .meta {
+            margin-top: 16px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .control-line,
+        .meta-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            font-size: 13px;
+        }
+
+        .control-line strong,
+        .meta-line strong {
+            color: #f8fafc;
+        }
+
+        .control-line span,
+        .meta-line span {
+            text-align: right;
+            color: #cbd5e1;
+        }
+
+        .status-card {
+            margin-top: 16px;
+            padding: 14px 14px 15px;
+            border-radius: 18px;
+            background: rgba(12, 20, 36, 0.84);
+            border: 1px solid rgba(56, 189, 248, 0.16);
+        }
+
+        .status-label {
+            margin: 0 0 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #7dd3fc;
+        }
+
+        #status-text {
+            margin: 0;
+            line-height: 1.55;
+            font-size: 13px;
+            color: #dbeafe;
+        }
+
+        #status-text.tone-success {
+            color: #bbf7d0;
+        }
+
+        #status-text.tone-warning {
+            color: #fde68a;
+        }
+
+        #status-text.tone-error {
+            color: #fecaca;
+        }
+
+        #status-text.tone-ready {
+            color: #99f6e4;
+        }
+
+        .footer-note {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 10;
+            max-width: min(420px, calc(100vw - 36px));
+            padding: 12px 14px;
+            border-radius: 18px;
+            background: rgba(8, 15, 29, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            box-shadow: 0 18px 44px rgba(2, 6, 23, 0.32);
+            color: #cbd5e1;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            color: #bae6fd;
+        }
+
+        @media (max-width: 720px) {
+            #hud {
+                top: 12px;
+                left: 12px;
+                width: calc(100vw - 24px);
+            }
+
+            .footer-note {
+                left: 12px;
+                right: 12px;
+                bottom: 12px;
+                max-width: none;
+            }
+
+            h1 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-root"></div>
+
+    <div id="hud">
+        <section class="panel">
+            <p class="eyebrow">Playable Scene</p>
+            <h1>Wall Takedown</h1>
+            <p class="lede">
+                Slide along the wall with <strong>A</strong> and <strong>D</strong>, wait for the patrol to line up on
+                the far side, then hit <strong>E</strong> to fire the hidden takedown.
+            </p>
+
+            <div class="controls">
+                <div class="control-line"><strong>A / D</strong><span>Move along the wall and cycle <code>HiddenWalkonWall</code></span></div>
+                <div class="control-line"><strong>E</strong><span>Trigger <code>HiddenTakedown</code> when aligned</span></div>
+                <div class="control-line"><strong>Mouse</strong><span>Orbit and zoom camera</span></div>
+            </div>
+
+            <div class="meta">
+                <div class="meta-line"><strong>Player Clip</strong><span id="player-clip">Loading</span></div>
+                <div class="meta-line"><strong>Enemy Clip</strong><span id="enemy-clip">Loading</span></div>
+                <div class="meta-line"><strong>Alignment</strong><span id="alignment-text">Waiting</span></div>
+            </div>
+
+            <div class="status-card">
+                <p class="status-label">Status</p>
+                <p id="status-text">Booting scene and loading animation assets...</p>
+            </div>
+        </section>
+    </div>
+
+    <div class="footer-note">
+        If you are opening this outside the Vite app and the JSON clips do not load, serve the project first so
+        <code>./Animations</code> can be fetched normally.
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="./wall-takedown-scene.js"></script>
+</body>
+</html>
