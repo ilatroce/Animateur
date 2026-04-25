@@ -1,8 +1,13 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const EMBEDDED_ASSETS = window.EMBEDDED_ASSETS || null;
+
+window.__wallTakedownBooted = true;
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const WALL_LENGTH = 20;
+const WALL_HEIGHT = 2.15;
+const WALL_TRIM_HEIGHT = 0.24;
+const WALL_CENTER_Y = WALL_HEIGHT * 0.5;
+const WALL_TRIM_Y = WALL_HEIGHT + WALL_TRIM_HEIGHT * 0.5;
 const PLAYER_SPEED = 4.2;
 const ENEMY_SPEED = 2.35;
 const PLAYER_LANE_X = 1.8;
@@ -39,13 +44,26 @@ const tempTarget = new THREE.Vector3();
 let scene;
 let camera;
 let renderer;
-let controls;
 let clock;
 let player;
 let enemy;
 let wallPulse = null;
 let takedownMarker = null;
 let sceneReady = false;
+const cameraState = {
+    radius: 16,
+    yaw: 0,
+    pitch: 0,
+    minPitch: -0.75,
+    maxPitch: 1.18,
+    minRadius: 6,
+    maxRadius: 22,
+    dragActive: false,
+    lastX: 0,
+    lastY: 0,
+    desiredTarget: new THREE.Vector3(0, 2.4, 0),
+    currentTarget: new THREE.Vector3(0, 2.4, 0)
+};
 
 const ui = {};
 const keyState = { KeyA: false, KeyD: false };
@@ -59,9 +77,30 @@ const wallState = {
     promptPulse: 0
 };
 
-bootstrap();
+bootstrap().catch(error => {
+    console.error(error);
+    const statusNode = document.getElementById('status-text');
+    const playerNode = document.getElementById('player-clip');
+    const enemyNode = document.getElementById('enemy-clip');
+    const alignmentNode = document.getElementById('alignment-text');
+
+    if (statusNode) {
+        statusNode.textContent = `Scene boot failed: ${error instanceof Error ? error.message : String(error)}`;
+        statusNode.className = 'tone-error';
+    }
+    if (playerNode) playerNode.textContent = 'Error';
+    if (enemyNode) enemyNode.textContent = 'Error';
+    if (alignmentNode) alignmentNode.textContent = 'Unavailable';
+});
 
 async function bootstrap() {
+    if (!window.THREE) {
+        throw new Error('THREE did not load from the local vendor script.');
+    }
+    if (!EMBEDDED_ASSETS) {
+        throw new Error('Embedded wall takedown assets were not found.');
+    }
+
     cacheUi();
     initScene();
     bindEvents();
@@ -96,15 +135,6 @@ function initScene() {
     renderer.toneMappingExposure = 1.06;
     canvasRoot.appendChild(renderer.domElement);
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.enablePan = false;
-    controls.minDistance = 6;
-    controls.maxDistance = 22;
-    controls.maxPolarAngle = Math.PI / 2 - 0.06;
-    controls.target.set(0, 2.4, 0);
-
     const hemisphere = new THREE.HemisphereLight(0xa7e5ff, 0x0a1222, 1.28);
     scene.add(hemisphere);
 
@@ -124,6 +154,7 @@ function initScene() {
 
     buildEnvironment();
     clock = new THREE.Clock();
+    initializeCameraRig();
 }
 
 function buildEnvironment() {
@@ -142,7 +173,7 @@ function buildEnvironment() {
     const wallGroup = new THREE.Group();
 
     const wallBody = new THREE.Mesh(
-        new THREE.BoxGeometry(0.42, 4.6, WALL_LENGTH),
+        new THREE.BoxGeometry(0.42, WALL_HEIGHT, WALL_LENGTH),
         new THREE.MeshStandardMaterial({
             color: 0x13293d,
             roughness: 0.48,
@@ -151,13 +182,13 @@ function buildEnvironment() {
             emissiveIntensity: 0.9
         })
     );
-    wallBody.position.set(0, 2.3, 0);
+    wallBody.position.set(0, WALL_CENTER_Y, 0);
     wallBody.castShadow = true;
     wallBody.receiveShadow = true;
     wallGroup.add(wallBody);
 
     const wallTrim = new THREE.Mesh(
-        new THREE.BoxGeometry(0.56, 0.24, WALL_LENGTH + 0.24),
+        new THREE.BoxGeometry(0.56, WALL_TRIM_HEIGHT, WALL_LENGTH + 0.24),
         new THREE.MeshStandardMaterial({
             color: 0x3db6e8,
             emissive: 0x1580aa,
@@ -166,7 +197,7 @@ function buildEnvironment() {
             metalness: 0.38
         })
     );
-    wallTrim.position.set(0, 4.68, 0);
+    wallTrim.position.set(0, WALL_TRIM_Y, 0);
     wallTrim.castShadow = true;
     wallGroup.add(wallTrim);
 
@@ -198,7 +229,7 @@ function buildEnvironment() {
         })
     );
     wallPulse.rotation.y = Math.PI / 2;
-    wallPulse.position.set(0.25, 2.3, 0);
+    wallPulse.position.set(0.25, WALL_CENTER_Y, 0);
     scene.add(wallPulse);
 
     takedownMarker = new THREE.Mesh(
@@ -242,21 +273,98 @@ function bindEvents() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', clearPressedKeys);
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    renderer.domElement.addEventListener('wheel', onMouseWheel, { passive: false });
+    renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+}
+
+function initializeCameraRig() {
+    const offset = camera.position.clone().sub(cameraState.currentTarget);
+    cameraState.radius = THREE.MathUtils.clamp(offset.length(), cameraState.minRadius, cameraState.maxRadius);
+    cameraState.yaw = Math.atan2(offset.x, offset.z);
+    cameraState.pitch = THREE.MathUtils.clamp(
+        Math.asin(offset.y / Math.max(cameraState.radius, 0.0001)),
+        cameraState.minPitch,
+        cameraState.maxPitch
+    );
+    updateCameraRig(0);
+}
+
+function onPointerDown(event) {
+    if (event.button !== 0 && event.button !== 2) return;
+
+    cameraState.dragActive = true;
+    cameraState.lastX = event.clientX;
+    cameraState.lastY = event.clientY;
+
+    if (renderer.domElement.setPointerCapture) {
+        renderer.domElement.setPointerCapture(event.pointerId);
+    }
+}
+
+function onPointerMove(event) {
+    if (!cameraState.dragActive) return;
+
+    const deltaX = event.clientX - cameraState.lastX;
+    const deltaY = event.clientY - cameraState.lastY;
+    cameraState.lastX = event.clientX;
+    cameraState.lastY = event.clientY;
+
+    cameraState.yaw -= deltaX * 0.0085;
+    cameraState.pitch = THREE.MathUtils.clamp(
+        cameraState.pitch - deltaY * 0.0065,
+        cameraState.minPitch,
+        cameraState.maxPitch
+    );
+}
+
+function onPointerUp(event) {
+    cameraState.dragActive = false;
+
+    if (renderer.domElement.releasePointerCapture) {
+        try {
+            renderer.domElement.releasePointerCapture(event.pointerId);
+        } catch (error) {
+            // Ignore release failures when the pointer is already detached.
+        }
+    }
+}
+
+function onMouseWheel(event) {
+    event.preventDefault();
+    cameraState.radius = THREE.MathUtils.clamp(
+        cameraState.radius + event.deltaY * 0.01,
+        cameraState.minRadius,
+        cameraState.maxRadius
+    );
+}
+
+function updateCameraRig(delta) {
+    const followStrength = delta > 0 ? 1 - Math.pow(0.001, delta) : 1;
+    cameraState.currentTarget.lerp(cameraState.desiredTarget, followStrength);
+
+    const cosPitch = Math.cos(cameraState.pitch);
+    camera.position.set(
+        cameraState.currentTarget.x + Math.sin(cameraState.yaw) * cosPitch * cameraState.radius,
+        cameraState.currentTarget.y + Math.sin(cameraState.pitch) * cameraState.radius,
+        cameraState.currentTarget.z + Math.cos(cameraState.yaw) * cosPitch * cameraState.radius
+    );
+    camera.lookAt(cameraState.currentTarget);
 }
 
 async function loadAssets() {
-    const [playerWalk, enemyWalk, takedown] = await Promise.all([
-        fetchAnimationAsset(ASSET_URLS.playerWalk),
-        fetchAnimationAsset(ASSET_URLS.enemyWalk),
-        fetchAnimationAsset(ASSET_URLS.takedown)
-    ]);
+    const playerWalk = parseAnimationAsset(EMBEDDED_ASSETS.playerWalk, ASSET_URLS.playerWalk);
+    const enemyWalk = parseAnimationAsset(EMBEDDED_ASSETS.enemyWalk, ASSET_URLS.enemyWalk);
+    const takedown = parseAnimationAsset(EMBEDDED_ASSETS.takedown, ASSET_URLS.takedown);
 
     loadedAssets.playerWalk = playerWalk;
     loadedAssets.enemyWalk = enemyWalk;
     loadedAssets.takedown = takedown;
 
     if (!playerWalk || !enemyWalk || !takedown) {
-        setStatus('One or more animation files could not be loaded. Serve the folder locally so the JSON clips can be fetched.', 'error');
+        setStatus('One or more embedded animation clips could not be read.', 'error');
         ui.playerClip.textContent = playerWalk ? playerWalk.name : 'Missing';
         ui.enemyClip.textContent = enemyWalk ? enemyWalk.name : 'Missing';
         ui.alignmentText.textContent = 'Unavailable';
@@ -270,23 +378,8 @@ async function loadAssets() {
     setStatus('Scene ready. Slide with A / D and wait for the enemy to line up for E.', 'success');
 }
 
-async function fetchAnimationAsset(url) {
+function parseAnimationAsset(data, fileName) {
     try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`${url} returned ${response.status}`);
-        }
-        const rawText = await response.text();
-        return parseAnimationAsset(rawText, url.split('/').pop() || url);
-    } catch (error) {
-        console.error(error);
-        return null;
-    }
-}
-
-function parseAnimationAsset(rawText, fileName) {
-    try {
-        const data = JSON.parse(rawText);
         const keyframes = deserializeKeyframes(data.keyframes);
         if (keyframes.length === 0) return null;
 
@@ -560,7 +653,7 @@ function animate() {
         updateHud();
     }
 
-    controls.update();
+    updateCameraRig(delta);
     renderer.render(scene, camera);
 }
 
@@ -705,8 +798,7 @@ function updateTakedownMarker(delta) {
 function updateCamera(delta) {
     if (!player) return;
 
-    tempTarget.set(0, 2.1, player.root.position.z * 0.2);
-    controls.target.lerp(tempTarget, 1 - Math.pow(0.001, delta));
+    cameraState.desiredTarget.set(0, 2.1, player.root.position.z * 0.2);
 }
 
 function updateHud() {

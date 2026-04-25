@@ -214,18 +214,37 @@
     </div>
 
     <div class="footer-note">
-        If you are opening this outside the Vite app and the JSON clips do not load, serve the project first so
-        <code>./Animations</code> can be fetched normally.
+        This page now carries its wall-walk, patrol, and takedown clips locally. If your browser still blocks module
+        scripts on <code>file://</code>, open it through a small local server instead.
     </div>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    <script>
+        window.__wallTakedownBooted = false;
+        window.__setWallTakedownBootStatus = function (message) {
+            const statusNode = document.getElementById('status-text');
+            const playerNode = document.getElementById('player-clip');
+            const enemyNode = document.getElementById('enemy-clip');
+            const alignmentNode = document.getElementById('alignment-text');
+
+            if (statusNode) {
+                statusNode.textContent = message;
+                statusNode.className = 'tone-error';
             }
-        }
+            if (playerNode) playerNode.textContent = 'Unavailable';
+            if (enemyNode) enemyNode.textContent = 'Unavailable';
+            if (alignmentNode) alignmentNode.textContent = 'Blocked';
+        };
+
+        setTimeout(function () {
+            if (!window.__wallTakedownBooted) {
+                window.__setWallTakedownBootStatus(
+                    'The scene script did not start. Your browser is blocking one of the local script files needed by this page.'
+                );
+            }
+        }, 2500);
     </script>
-    <script type="module" src="./wall-takedown-scene.js"></script>
+    <script src="./vendor/three/three.min.js"></script>
+    <script src="./wall-takedown-assets.js"></script>
+    <script src="./wall-takedown-scene.js"></script>
 </body>
 </html>

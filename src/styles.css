@@ -392,7 +392,7 @@ body.playground-page {
     gap: 10px;
     margin-top: 18px;
 }
-.playground-page button {
+.playground-page button, .playground-page .link-button {
     appearance: none;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
@@ -404,8 +404,10 @@ body.playground-page {
     padding: 11px 14px;
     cursor: pointer;
     transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    text-decoration: none;
+    text-align: center;
 }
-.playground-page button:hover {
+.playground-page button:hover, .playground-page .link-button:hover {
     transform: translateY(-1px);
     border-color: rgba(119, 247, 255, 0.34);
     background: rgba(119, 247, 255, 0.11);
