@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpiderLoad City</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: "Segoe UI", system-ui, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%),
+                radial-gradient(circle at top right, rgba(125, 211, 252, 0.12), transparent 22%),
+                linear-gradient(180deg, #020617 0%, #06111d 52%, #02040a 100%);
+            color: #e2e8f0;
+        }
+
+        #canvas-root {
+            position: fixed;
+            inset: 0;
+        }
+
+        #hud {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            width: min(380px, calc(100vw - 36px));
+            z-index: 10;
+        }
+
+        .panel {
+            background: rgba(7, 15, 28, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 26px;
+            box-shadow: 0 26px 70px rgba(2, 6, 23, 0.45);
+            backdrop-filter: blur(18px);
+            padding: 18px 18px 16px;
+        }
+
+        .eyebrow {
+            margin: 0;
+            font-size: 11px;
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            color: #7dd3fc;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 8px 0 10px;
+            font-size: 31px;
+            line-height: 1.04;
+        }
+
+        .lede {
+            margin: 0;
+            color: #cbd5e1;
+            line-height: 1.58;
+            font-size: 14px;
+        }
+
+        .controls,
+        .meta {
+            margin-top: 16px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .control-line,
+        .meta-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 12px;
+            border-radius: 15px;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            font-size: 13px;
+        }
+
+        .control-line strong,
+        .meta-line strong {
+            color: #f8fafc;
+        }
+
+        .control-line span,
+        .meta-line span {
+            text-align: right;
+            color: #cbd5e1;
+        }
+
+        .status-card {
+            margin-top: 16px;
+            padding: 14px 14px 15px;
+            border-radius: 18px;
+            background: rgba(10, 19, 34, 0.84);
+            border: 1px solid rgba(56, 189, 248, 0.16);
+        }
+
+        .status-label {
+            margin: 0 0 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #7dd3fc;
+        }
+
+        #status-text {
+            margin: 0;
+            line-height: 1.55;
+            font-size: 13px;
+            color: #dbeafe;
+        }
+
+        #status-text.tone-success {
+            color: #bbf7d0;
+        }
+
+        #status-text.tone-warning {
+            color: #fde68a;
+        }
+
+        #status-text.tone-error {
+            color: #fecaca;
+        }
+
+        #status-text.tone-ready {
+            color: #99f6e4;
+        }
+
+        .footer-note {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 10;
+            max-width: min(420px, calc(100vw - 36px));
+            padding: 12px 14px;
+            border-radius: 18px;
+            background: rgba(7, 15, 28, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            box-shadow: 0 18px 44px rgba(2, 6, 23, 0.32);
+            color: #cbd5e1;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            color: #bae6fd;
+        }
+
+        @media (max-width: 720px) {
+            #hud {
+                top: 12px;
+                left: 12px;
+                width: calc(100vw - 24px);
+            }
+
+            .footer-note {
+                left: 12px;
+                right: 12px;
+                bottom: 12px;
+                max-width: none;
+            }
+
+            h1 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-root"></div>
+
+    <div id="hud">
+        <section class="panel">
+            <p class="eyebrow">Standalone Scene</p>
+            <h1>SpiderLoad City</h1>
+            <p class="lede">
+                Roam the plaza with <strong>WASD</strong> using the universal walk loop. Hit <strong>L</strong> to fire
+                <code>SpiderLoad</code>, latch spiderwebs onto the skyline, and launch into the air while the final
+                pose stays locked after the animation ends.
+            </p>
+
+            <div class="controls">
+                <div class="control-line"><strong>W / A / S / D</strong><span>Move the character around the plaza</span></div>
+                <div class="control-line"><strong>L</strong><span>Trigger <code>SpiderLoad</code> and skyline web lines</span></div>
+                <div class="control-line"><strong>R</strong><span>Reset back to the center after the launch</span></div>
+                <div class="control-line"><strong>Mouse</strong><span>Orbit and zoom the follow camera</span></div>
+            </div>
+
+            <div class="meta">
+                <div class="meta-line"><strong>State</strong><span id="player-state">Loading</span></div>
+                <div class="meta-line"><strong>Current Clip</strong><span id="current-clip">None</span></div>
+                <div class="meta-line"><strong>Web Locks</strong><span id="web-locks">Offline</span></div>
+                <div class="meta-line"><strong>Altitude</strong><span id="altitude">0.0 m</span></div>
+            </div>
+
+            <div class="status-card">
+                <p class="status-label">Status</p>
+                <p id="status-text">Booting local scene and loading embedded animation clips...</p>
+            </div>
+        </section>
+    </div>
+
+    <div class="footer-note">
+        This page is bundled to run directly from disk. Open <code>SpiderLoadCity.html</code> with
+        <code>file://</code> and it will load the local Three.js vendor file plus the embedded walk and SpiderLoad clips.
+    </div>
+
+    <script>
+        window.__spiderCityBooted = false;
+        window.__setSpiderCityBootStatus = function (message) {
+            const statusNode = document.getElementById('status-text');
+            const stateNode = document.getElementById('player-state');
+            const clipNode = document.getElementById('current-clip');
+            const webNode = document.getElementById('web-locks');
+            const altitudeNode = document.getElementById('altitude');
+
+            if (statusNode) {
+                statusNode.textContent = message;
+                statusNode.className = 'tone-error';
+            }
+            if (stateNode) stateNode.textContent = 'Unavailable';
+            if (clipNode) clipNode.textContent = 'Unavailable';
+            if (webNode) webNode.textContent = 'Blocked';
+            if (altitudeNode) altitudeNode.textContent = '--';
+        };
+
+        setTimeout(function () {
+            if (!window.__spiderCityBooted) {
+                window.__setSpiderCityBootStatus(
+                    'The scene script did not start. Your browser is blocking one of the local files needed by this page.'
+                );
+            }
+        }, 2500);
+    </script>
+    <script src="./vendor/three/three.min.js"></script>
+    <script src="./spider-load-city-assets.js"></script>
+    <script src="./spider-load-city-scene.js"></script>
+</body>
+</html>
