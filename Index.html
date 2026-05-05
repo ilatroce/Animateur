@@ -18,6 +18,120 @@
             inset: 0;
             background: #1a1a1a;
         }
+
+        #motion-capture-preview {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            width: min(29vw, 24rem);
+            min-width: 18rem;
+            z-index: 35;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            border-radius: 1rem;
+            overflow: hidden;
+            background: rgba(9, 14, 25, 0.92);
+            box-shadow: 0 22px 50px rgba(0, 0, 0, 0.38);
+            backdrop-filter: blur(14px);
+        }
+
+        #motion-capture-preview.hidden {
+            display: none;
+        }
+
+        #motion-capture-stage {
+            position: relative;
+            aspect-ratio: 16 / 9;
+            background:
+                radial-gradient(circle at top, rgba(14, 165, 233, 0.16), transparent 42%),
+                linear-gradient(180deg, rgba(8, 12, 20, 0.96), rgba(4, 7, 13, 1));
+        }
+
+        #motion-capture-preview.dragging {
+            user-select: none;
+            cursor: grabbing;
+        }
+
+        #motion-capture-header {
+            cursor: grab;
+            touch-action: none;
+        }
+
+        #motion-capture-header:active {
+            cursor: grabbing;
+        }
+
+        #motion-capture-video,
+        #motion-capture-overlay {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #motion-capture-video {
+            object-fit: contain;
+            background: transparent;
+        }
+
+        #motion-capture-overlay {
+            pointer-events: none;
+        }
+
+        #motion-capture-controls {
+            display: grid;
+            grid-template-columns: auto auto auto 1fr auto;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.7rem 0.85rem 0.85rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(5, 10, 19, 0.92);
+        }
+
+        .motion-capture-mini-btn {
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 0.65rem;
+            background: rgba(30, 41, 59, 0.72);
+            color: #e2e8f0;
+            font: inherit;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+            padding: 0.55rem 0.7rem;
+            cursor: pointer;
+        }
+
+        .motion-capture-mini-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .motion-capture-mini-btn.recording {
+            background: rgba(190, 24, 93, 0.86);
+            border-color: rgba(244, 114, 182, 0.42);
+            color: #fff1f2;
+        }
+
+        #motion-capture-scrub {
+            width: 100%;
+            accent-color: #38bdf8;
+        }
+
+        #motion-capture-time {
+            font-size: 0.72rem;
+            color: #cbd5e1;
+            min-width: 4.4rem;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 900px) {
+            #motion-capture-preview {
+                width: calc(100vw - 1.5rem);
+                min-width: 0;
+                right: 0.75rem;
+                top: 0.75rem;
+            }
+        }
     </style>
     <link rel="stylesheet" href="./standalone/index-standalone.css">
 </head>
@@ -166,6 +280,10 @@
                         <button id="export-animation-btn" class="btn btn-secondary">Export</button>
                         <button id="import-animation-btn" class="btn btn-secondary">Import</button>
                     </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="motion-capture-upload-btn" class="btn btn-secondary">Upload Video</button>
+                        <button id="motion-capture-screen-btn" class="btn btn-secondary">Share Screen</button>
+                    </div>
                     <button id="delete-animation-btn" class="btn btn-ghost-destructive w-full">Delete</button>
                     <a href="./tools/ripper.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
                         Ripper
@@ -259,6 +377,27 @@
 
     <!-- 3D Canvas Container -->
     <div id="canvas-container"></div>
+    <div id="motion-capture-preview" class="hidden interactive-ui">
+        <div id="motion-capture-header" class="flex items-center justify-between border-b border-white/10 px-3 py-2">
+            <div>
+                <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">Motion Capture</div>
+                <div id="motion-capture-label" class="text-xs text-slate-300">No source</div>
+            </div>
+            <div id="motion-capture-state" class="text-[11px] font-medium text-slate-400">Idle</div>
+        </div>
+        <div id="motion-capture-stage">
+            <video id="motion-capture-video" muted playsinline controls></video>
+            <canvas id="motion-capture-overlay"></canvas>
+        </div>
+        <div id="motion-capture-controls">
+            <button id="motion-capture-record-btn" type="button" class="motion-capture-mini-btn">Record</button>
+            <button id="motion-capture-play-btn" type="button" class="motion-capture-mini-btn">Play</button>
+            <button id="motion-capture-stop-btn" type="button" class="motion-capture-mini-btn">Stop</button>
+            <input id="motion-capture-scrub" type="range" min="0" max="0" step="0.01" value="0">
+            <div id="motion-capture-time">0:00</div>
+        </div>
+    </div>
+    <input id="motion-capture-video-input" type="file" accept="video/*" class="hidden">
     <input id="pose-import-input" type="file" accept=".json,application/json" class="hidden">
     <input id="animation-import-input" type="file" accept=".json,application/json" class="hidden">
 
