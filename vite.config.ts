@@ -104,6 +104,7 @@ export default defineConfig({
     copyStaticAssets([
       'Animations',
       '3D models',
+      'standalone',
       'vendor',
       'tools/wall-takedown-scene.js',
       'tools/wall-takedown-assets.js'
