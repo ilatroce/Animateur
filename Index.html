@@ -19,7 +19,7 @@
             background: #1a1a1a;
         }
     </style>
-    <link rel="stylesheet" href="/src/styles.css">
+    <link rel="stylesheet" href="./standalone/index-standalone.css">
 </head>
 <body class="bg-background text-foreground font-sans antialiased">
 
@@ -167,13 +167,13 @@
                         <button id="import-animation-btn" class="btn btn-secondary">Import</button>
                     </div>
                     <button id="delete-animation-btn" class="btn btn-ghost-destructive w-full">Delete</button>
-                    <a href="./ripper.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
+                    <a href="./tools/ripper.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
                         Ripper
                     </a>
-                    <a href="./AutoRigScene.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
+                    <a href="./tools/AutoRigScene.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
                         Open Auto Rig Scene
                     </a>
-                    <a href="./Playground.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
+                    <a href="./tools/Playground.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">
                         Playground
                     </a>
                     <p id="asset-status" class="status-text">
@@ -262,6 +262,7 @@
     <input id="pose-import-input" type="file" accept=".json,application/json" class="hidden">
     <input id="animation-import-input" type="file" accept=".json,application/json" class="hidden">
 
-    <script type="module" src="/src/main.ts"></script>
+    <script src="./vendor/three/three.min.js"></script>
+    <script src="./standalone/index-standalone.js"></script>
 </body>
 </html>

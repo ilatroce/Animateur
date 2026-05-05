@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Rig Scene</title>
+    <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body class="auto-rig-page">
+    <div class="app-shell">
+        <aside class="panel">
+            <div>
+                <p class="eyebrow">Skinned Export Pipeline</p>
+                <h1>Auto Rig Scene</h1>
+                <p class="lede">
+                    Pick a Fast Poser animation, auto-build a simple skinned rig from generated cubes or an imported
+                    3D model, preview the motion in real time, then export the rigged result as a game-engine friendly GLB.
+                </p>
+            </div>
+
+            <section class="group">
+                <p class="group-title">Character Model</p>
+                <label>
+                    <span class="field-label">Mesh Source</span>
+                    <select id="model-select"></select>
+                </label>
+                <div class="button-row">
+                    <button id="import-model-btn">Import Model</button>
+                    <button id="clear-model-btn">Use Cubes</button>
+                </div>
+            </section>
+
+            <section class="group">
+                <p class="group-title">Animation</p>
+                <label>
+                    <span class="field-label">Choose Clip</span>
+                    <select id="animation-select"></select>
+                </label>
+                <div class="button-row">
+                    <button id="reload-btn">Refresh List</button>
+                    <button id="import-btn">Import JSON</button>
+                </div>
+                <div class="button-row">
+                    <button id="load-btn" class="button-primary">Build Rig</button>
+                    <button id="reset-btn">Reset Preview</button>
+                </div>
+            </section>
+
+            <section class="group">
+                <p class="group-title">Playback</p>
+                <div class="button-row">
+                    <button id="play-btn" class="button-primary" disabled>Play</button>
+                    <button id="export-btn" class="button-warm" disabled>Export GLB</button>
+                </div>
+                <div class="scrub-header">
+                    <span>Timeline</span>
+                    <span id="time-chip" class="time-chip">0.00s / 0.00s</span>
+                </div>
+                <input id="time-range" type="range" min="0" max="1" step="0.001" value="0" disabled>
+            </section>
+
+            <section class="group">
+                <p class="group-title">Preview</p>
+                <div class="toggle-grid">
+                    <label class="toggle">
+                        <input id="show-rig-toggle" type="checkbox" checked>
+                        <span>Show rig lines</span>
+                    </label>
+                    <label class="toggle">
+                        <input id="show-mesh-toggle" type="checkbox" checked>
+                        <span>Show mesh</span>
+                    </label>
+                    <label class="toggle">
+                        <input id="loop-toggle" type="checkbox" checked>
+                        <span>Loop clip</span>
+                    </label>
+                    <label class="toggle">
+                        <input id="auto-load-toggle" type="checkbox" checked>
+                        <span>Auto build on select</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="group">
+                <p class="group-title">Rig Stats</p>
+                <div class="stats">
+                    <div class="stat-row"><strong>Clip</strong><span id="stat-name">None loaded</span></div>
+                    <div class="stat-row"><strong>Source</strong><span id="stat-source">-</span></div>
+                    <div class="stat-row"><strong>Model</strong><span id="stat-model">Generated cubes</span></div>
+                    <div class="stat-row"><strong>Characters</strong><span id="stat-characters">0</span></div>
+                    <div class="stat-row"><strong>Bones / Char</strong><span id="stat-bones">0</span></div>
+                    <div class="stat-row"><strong>Keyframes</strong><span id="stat-keyframes">0</span></div>
+                    <div class="stat-row"><strong>Duration</strong><span id="stat-duration">0.00s</span></div>
+                </div>
+            </section>
+
+            <section class="status-card">
+                <p class="status-label">Status</p>
+                <p id="status-text" class="status-text tone-info">
+                    Loading bundled animation sources and shared browser-library clips.
+                </p>
+            </section>
+
+            <div class="footer-links">
+                <a class="link-button" href="../Index.html">Back To Fast Poser</a>
+                <a class="link-button" href="./ripper.html">Open Motion Ripper</a>
+            </div>
+        </aside>
+
+        <main class="viewport-card">
+            <div class="viewport-head">
+                <div>
+                    <p class="eyebrow">Live Preview</p>
+                    <h2>Skinned Rig Viewport</h2>
+                </div>
+                <div id="viewport-meta" class="viewport-meta">
+                    Orbit: mouse drag. Zoom: wheel. Rig helpers render over the mesh.
+                </div>
+            </div>
+            <div id="viewport"></div>
+        </main>
+    </div>
+
+    <input id="file-input" type="file" accept=".json,application/json" hidden>
+    <input id="model-file-input" type="file" accept=".obj,.glb,.gltf,.fbx,.mtl,.bin,image/*" multiple hidden>
+    <div id="loading-overlay" class="loading-overlay" hidden>
+        <div class="loading-box">
+            <div class="loading-spinner"></div>
+            <div>
+                <p id="loading-title" class="loading-title">Loading</p>
+                <p id="loading-detail" class="loading-detail">Preparing the scene.</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/auto-rig-scene.ts"></script>
+</body>
+</html>

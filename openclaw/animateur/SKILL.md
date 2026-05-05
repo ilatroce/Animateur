@@ -26,9 +26,9 @@ Before acting, verify the path exists. If neither path exists, ask the user for 
 Animateur is a no-build static browser toolset for 3D humanoid posing, lightweight animation, motion capture from reference video, runtime preview, and simple rig export. It has four HTML entry points:
 
 - `Index.html`: Fast Poser, the main manual pose, scene staging, timeline, pose library, and animation library editor.
-- `ripper.html`: Motion Ripper, a screen-share and MediaPipe pose-capture tool that saves Fast Poser-compatible animation JSON.
-- `Playground.html`: runtime arena for testing bundled/imported clips, player actions, NPC interactions, and summon effects.
-- `AutoRigScene.html`: auto-rig preview/export tool that turns compatible animation JSON plus generated cubes or imported meshes into skinned GLB exports.
+- `tools/ripper.html`: Motion Ripper, a screen-share and MediaPipe pose-capture tool that saves Fast Poser-compatible animation JSON.
+- `tools/Playground.html`: runtime arena for testing bundled/imported clips, player actions, NPC interactions, and summon effects.
+- `tools/AutoRigScene.html`: auto-rig preview/export tool that turns compatible animation JSON plus generated cubes or imported meshes into skinned GLB exports.
 
 Important folders:
 
@@ -60,9 +60,9 @@ If Python is unavailable, use another installed static server such as `npx serve
 Open these exact URLs from the same browser and origin:
 
 - `http://localhost:8000/Index.html`
-- `http://localhost:8000/ripper.html`
-- `http://localhost:8000/Playground.html`
-- `http://localhost:8000/AutoRigScene.html`
+- `http://localhost:8000/tools/ripper.html`
+- `http://localhost:8000/tools/Playground.html`
+- `http://localhost:8000/tools/AutoRigScene.html`
 
 Use the exact uppercase `Index.html`. Shared pose and animation libraries live in browser `localStorage`, so changing port, protocol, host, or browser creates a separate library.
 

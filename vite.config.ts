@@ -105,8 +105,8 @@ export default defineConfig({
       'Animations',
       '3D models',
       'vendor',
-      'wall-takedown-scene.js',
-      'wall-takedown-assets.js'
+      'tools/wall-takedown-scene.js',
+      'tools/wall-takedown-assets.js'
     ]),
     aliasMainHtmlEntries(MAIN_ENTRY_CANDIDATES)
   ],
@@ -114,10 +114,10 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: mainEntryPath,
-        playground: path.resolve(__dirname, 'Playground.html'),
-        wallTakedownScene: path.resolve(__dirname, 'WallTakedownScene.html'),
-        autoRigScene: path.resolve(__dirname, 'AutoRigScene.html'),
-        ripper: path.resolve(__dirname, 'ripper.html')
+        playground: path.resolve(__dirname, 'tools/Playground.html'),
+        wallTakedownScene: path.resolve(__dirname, 'tools/WallTakedownScene.html'),
+        autoRigScene: path.resolve(__dirname, 'tools/AutoRigScene.html'),
+        ripper: path.resolve(__dirname, 'tools/ripper.html')
       }
     }
   }

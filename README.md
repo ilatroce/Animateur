@@ -2,10 +2,10 @@
 
 Animator is a browser-based 3D posing, lightweight animation, runtime preview, and export sandbox made of four connected tools:
 
-- `index.html`: the main editor, labeled in the UI as **Fast Poser**
-- `ripper.html`: a motion-capture helper, labeled in the UI as **Motion Ripper**
-- `Playground.html`: a playable runtime test scene, labeled in the UI as **Playground**
-- `AutoRigScene.html`: a skinned rig preview and export helper, labeled in the UI as **Auto Rig Scene**
+- `Index.html`: the main editor, labeled in the UI as **Fast Poser**
+- `tools/ripper.html`: a motion-capture helper, labeled in the UI as **Motion Ripper**
+- `tools/Playground.html`: a playable runtime test scene, labeled in the UI as **Playground**
+- `tools/AutoRigScene.html`: a skinned rig preview and export helper, labeled in the UI as **Auto Rig Scene**
 
 The project is designed for fast previs and experimentation rather than full character animation production. You can manually pose simple box-rig characters, build keyframed animations, save reusable poses and timelines, import and export JSON assets, generate new animation clips from reference video by using browser screen sharing plus MediaPipe pose tracking, test those clips in a small playable arena, and convert them into simple skinned GLB exports.
 
@@ -32,10 +32,11 @@ Animator gives you a quick way to do all of the following without leaving the br
 
 | Path | Purpose |
 | --- | --- |
-| `index.html` | Main Fast Poser app for manual posing, scene staging, timeline editing, and asset library management |
-| `ripper.html` | Motion Ripper app for screen-share pose tracking and animation capture |
-| `Playground.html` | Runtime test arena for trying walk, action, interaction, and summon clips in a playable scene |
-| `AutoRigScene.html` | Auto Rig Scene app for building a generated cube rig or auto-weighted imported 3D model from a Fast Poser animation and exporting GLB |
+| `Index.html` | Main Fast Poser app for manual posing, scene staging, timeline editing, and asset library management |
+| `tools/ripper.html` | Motion Ripper app for screen-share pose tracking and animation capture |
+| `tools/Playground.html` | Runtime test arena for trying walk, action, interaction, and summon clips in a playable scene |
+| `tools/AutoRigScene.html` | Auto Rig Scene app for building a generated cube rig or auto-weighted imported 3D model from a Fast Poser animation and exporting GLB |
+| `standalone/` | Generated standalone Fast Poser bundle consumed by `Index.html` |
 | `Animations/` | Bundled sample animation JSON files you can import into Fast Poser, Playground, and Auto Rig Scene |
 | `Animations/*.animation.json` | Example clips such as walks, flips, kicks, two-character spear actions, and an effect-driven summon animation |
 
@@ -43,16 +44,16 @@ Animator gives you a quick way to do all of the following without leaving the br
 
 ```mermaid
 flowchart LR
-    A["Fast Poser<br/>index.html"] --> B["Save pose to browser library"]
+    A["Fast Poser<br/>Index.html"] --> B["Save pose to browser library"]
     A --> C["Save animation to browser library"]
     A --> D["Export .pose.json / .animation.json"]
-    E["Motion Ripper<br/>ripper.html"] --> F["Track reference video with MediaPipe"]
+    E["Motion Ripper<br/>tools/ripper.html"] --> F["Track reference video with MediaPipe"]
     F --> G["Record compatible animation JSON"]
     G --> C
     G --> D
     H["Animations/ sample files"] --> A
-    H --> I["Playground<br/>Playground.html"]
-    H --> J["Auto Rig Scene<br/>AutoRigScene.html"]
+    H --> I["Playground<br/>tools/Playground.html"]
+    H --> J["Auto Rig Scene<br/>tools/AutoRigScene.html"]
     C --> J
     D --> I
     D --> J
@@ -61,12 +62,12 @@ flowchart LR
 
 The normal workflow is:
 
-1. Open `index.html` to pose characters and work on the timeline.
-2. Open `ripper.html` when you want to pull motion from a reference video.
+1. Open `Index.html` to pose characters and work on the timeline.
+2. Open `tools/ripper.html` when you want to pull motion from a reference video.
 3. Save or export a captured clip from Motion Ripper.
 4. Load that clip back into Fast Poser to preview, edit, combine, or re-export it.
-5. Open `Playground.html` when you want to test clips as runtime actions with a controllable player and NPCs.
-6. Open `AutoRigScene.html` when you want to build a skinned preview rig from a clip and export it as GLB.
+5. Open `tools/Playground.html` when you want to test clips as runtime actions with a controllable player and NPCs.
+6. Open `tools/AutoRigScene.html` when you want to build a skinned preview rig from a clip and export it as GLB.
 
 ## Quick Start
 
@@ -94,9 +95,9 @@ npm run dev
 Then visit:
 
 - `http://localhost:PORT/`
-- `http://localhost:PORT/ripper.html`
-- `http://localhost:PORT/Playground.html`
-- `http://localhost:PORT/AutoRigScene.html`
+- `http://localhost:PORT/tools/ripper.html`
+- `http://localhost:PORT/tools/Playground.html`
+- `http://localhost:PORT/tools/AutoRigScene.html`
 
 Useful scripts:
 
@@ -106,8 +107,8 @@ Useful scripts:
 
 ### Important Notes
 
-- Open the main editor at `index.html` or the site root.
-- Use the same browser and the same origin for `index.html`, `ripper.html`, and `AutoRigScene.html` if you want the shared browser animation library to work.
+- Open the main editor at `Index.html` or the site root.
+- Use the same browser and the same origin for `Index.html`, `tools/ripper.html`, and `tools/AutoRigScene.html` if you want the shared browser animation library to work.
 - Motion Ripper depends on MediaPipe assets loaded from the internet, so an offline browser session will not fully work.
 - Playground and Auto Rig Scene load bundled sample animation files from `Animations/`, so serve the whole repository folder rather than a single file.
 

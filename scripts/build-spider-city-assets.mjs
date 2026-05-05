@@ -10,7 +10,7 @@ const sources = {
     spiderLoad: path.join(repoRoot, 'Animations', 'spiderload.animation.json')
 };
 
-const outputPath = path.join(repoRoot, 'spider-load-city-assets.js');
+const outputPath = path.join(repoRoot, 'tools', 'spider-load-city-assets.js');
 
 async function main() {
     const assets = {};
