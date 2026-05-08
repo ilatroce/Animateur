@@ -66,6 +66,11 @@ const PLAY_BUTTON_CLASS = `${buttonVariants({ variant: 'secondary', size: 'md' }
 const STOP_BUTTON_CLASS = `${buttonVariants({ variant: 'secondary', size: 'md' })} ${TIMELINE_ACTION_BUTTON_CLASS}`;
 const CLIP_BUTTON_CLASS = `${buttonVariants({ variant: 'secondary', size: 'md' })} ${TIMELINE_ACTION_BUTTON_CLASS}`;
 const CLIP_DISABLED_BUTTON_CLASS = `${buttonVariants({ variant: 'disabled', size: 'md' })} ${TIMELINE_ACTION_BUTTON_CLASS}`;
+const SPRITESHEET_EXPORT = {
+    frameSize: 512,
+    fps: 24,
+    maxFrames: 240
+};
 let timelineViewDuration = TIMELINE_MIN_DURATION;
 const clock = new THREE.Clock();
 const ASSET_FORMAT = 'fast-poser-asset';
@@ -76,6 +81,18 @@ const WEAPON_MIN_SIZE = 0.05;
 const WEAPON_MAX_SIZE = 40;
 const WEAPON_DEFAULT_DIMENSIONS = { width: 0.16, length: 1.65, depth: 0.16 };
 const WEAPON_DEFAULT_COLOR = '#d4d4d8';
+const BODY_PART_COLOR_SWATCHES = [
+    { name: 'White', value: '#ffffff' },
+    { name: 'Black', value: '#111827' },
+    { name: 'Gray', value: '#6b7280' },
+    { name: 'Red', value: '#ef4444' },
+    { name: 'Orange', value: '#f97316' },
+    { name: 'Yellow', value: '#facc15' },
+    { name: 'Green', value: '#22c55e' },
+    { name: 'Blue', value: '#3b82f6' },
+    { name: 'Purple', value: '#8b5cf6' },
+    { name: 'Pink', value: '#ec4899' }
+];
 const STORAGE_KEYS = {
     pose: 'fast-poser:pose-library',
     animation: 'fast-poser:animation-library'
@@ -147,12 +164,14 @@ function init() {
     // Environment (Floor & Grid)
     const grid = new THREE.GridHelper( 40, 40, 0x444444, 0x222222 );
     grid.position.y = 0;
+    grid.userData.hideFromSpritesheet = true;
     scene.add( grid );
 
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
     const floor = new THREE.Mesh( new THREE.PlaneGeometry( 100, 100 ), floorMat );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
+    floor.userData.hideFromSpritesheet = true;
     scene.add( floor );
 
     summonVfx = createSummonVfxRig();
@@ -234,6 +253,7 @@ function init() {
 
     ui.modeRotateBtn.addEventListener('click', () => setMode('rotate'));
     ui.modeTranslateBtn.addEventListener('click', () => setMode('translate'));
+    createBodyPartColorControls();
     ui.deleteCubeBtn.addEventListener('click', deleteSelectedReferenceCube);
     ui.deleteWeaponBtn.addEventListener('click', deleteSelectedWeapon);
     ui.anchorWeaponBtn.addEventListener('click', anchorSelectedWeaponFromControls);
@@ -303,6 +323,7 @@ function init() {
     ui.loadAnimationBtn.addEventListener('click', loadSelectedAnimationFromLibrary);
     ui.exportAnimationBtn.addEventListener('click', exportSelectedAnimation);
     ui.importAnimationBtn.addEventListener('click', () => ui.animationImportInput.click());
+    ui.exportSpritesheetBtn.addEventListener('click', exportCurrentAnimationSpritesheet);
     ui.deleteAnimationBtn.addEventListener('click', () => deleteSelectedAsset('animation'));
     ui.poseImportInput.addEventListener('change', (event) => handleAssetImport(event, 'pose'));
     ui.animationImportInput.addEventListener('change', (event) => handleAssetImport(event, 'animation'));
@@ -368,6 +389,9 @@ function cacheUi() {
     ui.actorWidthInput = document.getElementById('actor-width-input');
     ui.actorHeightInput = document.getElementById('actor-height-input');
     ui.actorDepthInput = document.getElementById('actor-depth-input');
+    ui.bodyPartColorPanel = document.getElementById('body-part-color-panel');
+    ui.bodyPartColorName = document.getElementById('body-part-color-name');
+    ui.bodyPartColorGrid = document.getElementById('body-part-color-grid');
     ui.selectionInfo = document.getElementById('selection-info');
     ui.selectedName = document.getElementById('selected-name');
     ui.addKeyframeBtn = document.getElementById('add-kf-btn');
@@ -405,6 +429,8 @@ function cacheUi() {
     ui.loadAnimationBtn = document.getElementById('load-animation-btn');
     ui.exportAnimationBtn = document.getElementById('export-animation-btn');
     ui.importAnimationBtn = document.getElementById('import-animation-btn');
+    ui.spritesheetAngleSelect = document.getElementById('spritesheet-angle-select');
+    ui.exportSpritesheetBtn = document.getElementById('export-spritesheet-btn');
     ui.deleteAnimationBtn = document.getElementById('delete-animation-btn');
     ui.assetStatus = document.getElementById('asset-status');
     ui.poseImportInput = document.getElementById('pose-import-input');
@@ -697,6 +723,7 @@ function createPoseAsset(name) {
         scene: {
             characterCount: characters.length,
             characterColors: getCharacterColors(),
+            characterPartColors: getCharacterPartColors(),
             weapons: serializeSceneWeapons()
         },
         pose: serializePose(capturePose())
@@ -713,6 +740,7 @@ function createAnimationAsset(name) {
         scene: {
             characterCount: characters.length,
             characterColors: getCharacterColors(),
+            characterPartColors: getCharacterPartColors(),
             weapons: serializeSceneWeapons()
         },
         playbackSpeed,
@@ -870,6 +898,7 @@ function normalizeImportedAsset(data, expectedType, fallbackFileName) {
     const scene = {
         characterCount: getAssetCharacterCount(data),
         characterColors: normalizeCharacterColors(data?.scene?.characterColors ?? data?.characterColors),
+        characterPartColors: normalizeCharacterPartColors(data?.scene?.characterPartColors ?? data?.characterPartColors),
         weapons: normalizeSerializedWeapons(data?.scene?.weapons ?? data?.weapons)
     };
 
@@ -931,6 +960,31 @@ function normalizeCharacterColors(values) {
             }
         })
         .filter(Boolean);
+}
+
+function normalizeCharacterPartColorMap(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+    return Object.entries(value).reduce((partColors, [partName, colorValue]) => {
+        const normalizedName = String(partName || '')
+            .trim()
+            .replace(/[\s-]+/g, '_')
+            .replace(/_[0-9]+$/, '');
+        if (!normalizedName) return partColors;
+
+        try {
+            partColors[normalizedName] = `#${new THREE.Color(colorValue).getHexString()}`;
+        } catch (error) {
+            // Ignore invalid imported colors so one bad swatch does not block the asset.
+        }
+
+        return partColors;
+    }, {});
+}
+
+function normalizeCharacterPartColors(values) {
+    return (Array.isArray(values) ? values : [])
+        .map(value => normalizeCharacterPartColorMap(value));
 }
 
 function normalizeSerializedWeapons(values) {
@@ -2008,6 +2062,7 @@ function updateAnimationEffects(delta) {
 function syncSceneToAsset(asset) {
     const requiredCount = Math.max(0, getAssetCharacterCount(asset));
     const colors = normalizeCharacterColors(asset?.scene?.characterColors);
+    const partColors = normalizeCharacterPartColors(asset?.scene?.characterPartColors);
 
     if (characters.length !== requiredCount) {
         clearSceneCharacters();
@@ -2021,11 +2076,31 @@ function syncSceneToAsset(asset) {
         });
     }
 
+    if (partColors.length > 0) {
+        characters.forEach((character, index) => {
+            applyCharacterPartColors(character, partColors[index]);
+        });
+    }
+
     syncWeaponsToAsset(asset);
+    syncBodyPartColorControls();
 }
 
 function getCharacterColors() {
     return characters.map(character => character.userData.characterColor || '#ffffff');
+}
+
+function getCharacterPartColors() {
+    return characters.map(character => {
+        const partColors = {};
+
+        character.traverse(obj => {
+            if (!obj.isGroup || !obj.userData.isJoint || !obj.userData.partColor) return;
+            partColors[getBodyPartBaseName(obj)] = obj.userData.partColor;
+        });
+
+        return partColors;
+    });
 }
 
 function downloadAssetFile(asset) {
@@ -2040,6 +2115,354 @@ function downloadAssetFile(asset) {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+}
+
+async function exportCurrentAnimationSpritesheet() {
+    if (keyframes.length < 2) {
+        setStatus('Load or record at least two keyframes before exporting a spritesheet.', 'error');
+        return;
+    }
+
+    const duration = getAnimationEndTime();
+    if (duration <= 0) {
+        setStatus('The current animation has no duration to export.', 'error');
+        return;
+    }
+
+    const button = ui.exportSpritesheetBtn;
+    const previousButtonText = button?.textContent ?? 'Spritesheet';
+    const previousButtonDisabled = button?.disabled ?? false;
+    const previousTime = currentTime;
+    const previousWasPlaying = isPlaying;
+    const previousBackground = scene.background;
+    const previousFog = scene.fog;
+    const previousCameraState = snapshotSpritesheetCamera(camera);
+    const previousEffectTimes = {
+        summon: summonVfx?.time ?? 0,
+        slash: slashVfx?.time ?? 0
+    };
+    let restoreVisibility = null;
+    let captureRenderer = null;
+    let sheetCanvas = null;
+    let samplePlan = null;
+    let captureSucceeded = false;
+    let exportAngle = 'current';
+
+    try {
+        stopPlayback();
+        pointerState = null;
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Recording...';
+        }
+
+        exportAngle = ui.spritesheetAngleSelect?.value || 'current';
+        samplePlan = getSpritesheetSamplePlan(duration);
+        const frameSize = SPRITESHEET_EXPORT.frameSize;
+        const columns = Math.ceil(Math.sqrt(samplePlan.times.length));
+        const rows = Math.ceil(samplePlan.times.length / columns);
+        sheetCanvas = document.createElement('canvas');
+        sheetCanvas.width = columns * frameSize;
+        sheetCanvas.height = rows * frameSize;
+
+        const sheetContext = sheetCanvas.getContext('2d');
+        if (!sheetContext) {
+            throw new Error('Could not create a spritesheet canvas.');
+        }
+
+        const bounds = exportAngle === 'current' ? null : computeSpritesheetBounds(samplePlan.times);
+        const captureCamera = createSpritesheetCamera(exportAngle, bounds);
+        copySpritesheetCamera(captureCamera, camera);
+        restoreVisibility = applySpritesheetCaptureVisibility();
+        resetSpritesheetEffectHistory();
+        scene.background = null;
+        scene.fog = null;
+
+        captureRenderer = createSpritesheetRenderer(frameSize);
+        sheetContext.clearRect(0, 0, sheetCanvas.width, sheetCanvas.height);
+
+        samplePlan.times.forEach((time, index) => {
+            setSpritesheetEffectTime(time);
+            applyPoseAtTime(time);
+            scene.updateMatrixWorld(true);
+            captureRenderer.clear(true, true, true);
+            captureRenderer.render(scene, camera);
+
+            const column = index % columns;
+            const row = Math.floor(index / columns);
+            sheetContext.drawImage(
+                captureRenderer.domElement,
+                column * frameSize,
+                row * frameSize,
+                frameSize,
+                frameSize
+            );
+        });
+
+        captureSucceeded = true;
+    } catch (error) {
+        console.error(error);
+        setStatus(error instanceof Error ? error.message : 'Unable to export the spritesheet.', 'error');
+    } finally {
+        captureRenderer?.dispose?.();
+        restoreVisibility?.();
+        scene.background = previousBackground;
+        scene.fog = previousFog;
+        restoreSpritesheetCamera(camera, previousCameraState);
+        if (summonVfx) summonVfx.time = previousEffectTimes.summon;
+        if (slashVfx) slashVfx.time = previousEffectTimes.slash;
+        resetSpritesheetEffectHistory();
+        applyPoseAtTime(previousTime);
+        isPlaying = previousWasPlaying;
+        refreshTimelineUi();
+        if (button) {
+            button.disabled = previousButtonDisabled;
+            button.textContent = previousButtonText;
+        }
+    }
+
+    if (!captureSucceeded || !sheetCanvas || !samplePlan) {
+        return;
+    }
+
+    try {
+        await downloadCanvasAsPng(sheetCanvas, getSpritesheetFileName(exportAngle));
+        const effectiveFps = samplePlan.effectiveFps.toFixed(samplePlan.effectiveFps >= 10 ? 0 : 1);
+        const capNote = samplePlan.wasCapped ? ` at ${effectiveFps} fps` : '';
+        setStatus(
+            `Spritesheet exported with ${samplePlan.times.length} transparent frame${samplePlan.times.length === 1 ? '' : 's'}${capNote}.`,
+            'success'
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(error instanceof Error ? error.message : 'Unable to save the spritesheet PNG.', 'error');
+    }
+}
+
+function getSpritesheetSamplePlan(duration) {
+    const targetFps = SPRITESHEET_EXPORT.fps;
+    const idealFrameCount = Math.max(1, Math.floor(duration * targetFps) + 1);
+    const frameCount = Math.min(idealFrameCount, SPRITESHEET_EXPORT.maxFrames);
+    const times = [];
+
+    if (frameCount === 1) {
+        times.push(0);
+    } else {
+        for (let index = 0; index < frameCount; index += 1) {
+            times.push(Math.min(duration, (duration * index) / (frameCount - 1)));
+        }
+    }
+
+    return {
+        times,
+        wasCapped: frameCount < idealFrameCount,
+        effectiveFps: frameCount <= 1 || duration <= 0 ? targetFps : (frameCount - 1) / duration
+    };
+}
+
+function createSpritesheetRenderer(frameSize) {
+    const captureRenderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: true,
+        preserveDrawingBuffer: true
+    });
+
+    captureRenderer.setPixelRatio(1);
+    captureRenderer.setSize(frameSize, frameSize, false);
+    captureRenderer.setClearColor(0x000000, 0);
+    captureRenderer.shadowMap.enabled = renderer.shadowMap.enabled;
+    captureRenderer.shadowMap.type = renderer.shadowMap.type;
+
+    if ('outputColorSpace' in renderer && 'outputColorSpace' in captureRenderer) {
+        captureRenderer.outputColorSpace = renderer.outputColorSpace;
+    }
+
+    if ('toneMapping' in renderer && 'toneMapping' in captureRenderer) {
+        captureRenderer.toneMapping = renderer.toneMapping;
+        captureRenderer.toneMappingExposure = renderer.toneMappingExposure;
+    }
+
+    return captureRenderer;
+}
+
+function applySpritesheetCaptureVisibility() {
+    const changedObjects = [];
+
+    scene.traverse(object => {
+        const shouldHide = object === transformControl
+            || object === translationHandle
+            || object.userData?.hideFromSpritesheet;
+
+        if (!shouldHide) return;
+
+        changedObjects.push({ object, visible: object.visible });
+        object.visible = false;
+    });
+
+    return () => {
+        changedObjects.forEach(({ object, visible }) => {
+            object.visible = visible;
+        });
+    };
+}
+
+function computeSpritesheetBounds(sampleTimes) {
+    const bounds = new THREE.Box3();
+    const targets = getSpritesheetCaptureTargets();
+
+    sampleTimes.forEach(time => {
+        setSpritesheetEffectTime(time);
+        applyPoseAtTime(time);
+        scene.updateMatrixWorld(true);
+
+        targets.forEach(target => {
+            if (!target?.visible) return;
+            bounds.expandByObject(target);
+        });
+    });
+
+    if (bounds.isEmpty()) {
+        bounds.min.set(-1, 0, -1);
+        bounds.max.set(1, 3, 1);
+    }
+
+    return bounds;
+}
+
+function getSpritesheetCaptureTargets() {
+    return [
+        ...characters,
+        ...referenceCubes,
+        ...weapons,
+        summonVfx?.group,
+        slashVfx?.group
+    ].filter(Boolean);
+}
+
+function createSpritesheetCamera(angle, bounds) {
+    const captureCamera = camera.clone();
+    captureCamera.aspect = 1;
+    captureCamera.updateProjectionMatrix();
+
+    if (angle === 'current') {
+        return captureCamera;
+    }
+
+    const safeBounds = bounds && !bounds.isEmpty()
+        ? bounds
+        : new THREE.Box3(new THREE.Vector3(-1, 0, -1), new THREE.Vector3(1, 3, 1));
+    const sphere = safeBounds.getBoundingSphere(new THREE.Sphere());
+    const size = safeBounds.getSize(new THREE.Vector3());
+    const target = sphere.center.clone();
+    target.y += Math.min(size.y * 0.06, 0.35);
+
+    const fov = THREE.MathUtils.degToRad(captureCamera.fov || 45);
+    const radius = Math.max(sphere.radius, 1.4);
+    const distance = Math.max(4, (radius / Math.sin(fov * 0.5)) * 1.12);
+    const direction = getSpritesheetCameraDirection(angle);
+
+    captureCamera.position.copy(target).addScaledVector(direction, distance);
+    captureCamera.near = 0.05;
+    captureCamera.far = Math.max(100, distance + radius * 8);
+    captureCamera.lookAt(target);
+    captureCamera.updateProjectionMatrix();
+    captureCamera.updateMatrixWorld(true);
+
+    return captureCamera;
+}
+
+function getSpritesheetCameraDirection(angle) {
+    const directions = {
+        front: new THREE.Vector3(0, 0.22, 1),
+        back: new THREE.Vector3(0, 0.22, -1),
+        left: new THREE.Vector3(-1, 0.22, 0),
+        right: new THREE.Vector3(1, 0.22, 0),
+        'three-quarter': new THREE.Vector3(0.72, 0.34, 0.72),
+        top: new THREE.Vector3(0.02, 1, 0.02)
+    };
+
+    return (directions[angle] || directions.front).normalize();
+}
+
+function snapshotSpritesheetCamera(sourceCamera) {
+    return {
+        position: sourceCamera.position.clone(),
+        quaternion: sourceCamera.quaternion.clone(),
+        up: sourceCamera.up.clone(),
+        fov: sourceCamera.fov,
+        aspect: sourceCamera.aspect,
+        near: sourceCamera.near,
+        far: sourceCamera.far,
+        zoom: sourceCamera.zoom
+    };
+}
+
+function copySpritesheetCamera(sourceCamera, targetCamera) {
+    targetCamera.position.copy(sourceCamera.position);
+    targetCamera.quaternion.copy(sourceCamera.quaternion);
+    targetCamera.up.copy(sourceCamera.up);
+    targetCamera.fov = sourceCamera.fov;
+    targetCamera.aspect = sourceCamera.aspect;
+    targetCamera.near = sourceCamera.near;
+    targetCamera.far = sourceCamera.far;
+    targetCamera.zoom = sourceCamera.zoom;
+    targetCamera.updateProjectionMatrix();
+    targetCamera.updateMatrixWorld(true);
+}
+
+function restoreSpritesheetCamera(targetCamera, state) {
+    targetCamera.position.copy(state.position);
+    targetCamera.quaternion.copy(state.quaternion);
+    targetCamera.up.copy(state.up);
+    targetCamera.fov = state.fov;
+    targetCamera.aspect = state.aspect;
+    targetCamera.near = state.near;
+    targetCamera.far = state.far;
+    targetCamera.zoom = state.zoom;
+    targetCamera.updateProjectionMatrix();
+    targetCamera.updateMatrixWorld(true);
+}
+
+function setSpritesheetEffectTime(time) {
+    if (summonVfx) summonVfx.time = time;
+    if (slashVfx) slashVfx.time = time;
+}
+
+function resetSpritesheetEffectHistory() {
+    if (!slashVfx) return;
+    slashVfx.history.length = 0;
+    slashVfx.lastClipTime = null;
+}
+
+function getSpritesheetFileName(angle) {
+    const rawName = ui.animationNameInput?.value?.trim()
+        || getSelectedAsset('animation')?.name
+        || 'animation';
+    const safeName = rawName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'animation';
+    const safeAngle = String(angle || 'current').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'current';
+
+    return `${safeName}-${safeAngle}-spritesheet.png`;
+}
+
+function downloadCanvasAsPng(canvas, fileName) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (!blob) {
+                reject(new Error('Could not encode the spritesheet PNG.'));
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            resolve();
+        }, 'image/png');
+    });
 }
 
 function handleTransformObjectChange() {
@@ -2135,6 +2558,7 @@ function applyPoseState(pose) {
 
     syncTransformAttachment();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
     syncWeaponControls();
 }
 
@@ -2856,6 +3280,7 @@ function selectReferenceCube(cube) {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
 
     ui.selectionInfo.classList.remove('hidden');
     ui.selectedName.innerText = getReferenceCubeDisplayName(cube);
@@ -2913,6 +3338,51 @@ function syncActorDimensionControls() {
     ui.actorWidthInput.value = formatReferenceCubeDimension(actor.scale.x);
     ui.actorHeightInput.value = formatReferenceCubeDimension(actor.scale.y);
     ui.actorDepthInput.value = formatReferenceCubeDimension(actor.scale.z);
+}
+
+function createBodyPartColorControls() {
+    if (!ui.bodyPartColorGrid) return;
+
+    ui.bodyPartColorGrid.innerHTML = '';
+    BODY_PART_COLOR_SWATCHES.forEach(swatch => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'body-part-color-swatch';
+        button.dataset.color = swatch.value;
+        button.title = swatch.name;
+        button.setAttribute('aria-label', swatch.name);
+        button.style.setProperty('--swatch-color', swatch.value);
+        button.addEventListener('click', () => handleBodyPartColorInput(swatch));
+        ui.bodyPartColorGrid.appendChild(button);
+    });
+}
+
+function syncBodyPartColorControls() {
+    if (!ui.bodyPartColorPanel || !ui.bodyPartColorGrid) return;
+
+    if (!selectedJoint) {
+        ui.bodyPartColorPanel.classList.add('hidden');
+        return;
+    }
+
+    const currentColor = getBodyPartColor(selectedJoint);
+    ui.bodyPartColorPanel.classList.remove('hidden');
+    ui.bodyPartColorName.textContent = getBodyPartDisplayName(selectedJoint);
+
+    Array.from(ui.bodyPartColorGrid.children).forEach(button => {
+        const isActive = normalizeColorValue(button.dataset.color, '#ffffff') === currentColor;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+}
+
+function handleBodyPartColorInput(swatch) {
+    if (!selectedJoint) return;
+
+    setBodyPartColor(selectedJoint, swatch.value);
+    syncBodyPartColorControls();
+    handlePoseEdited();
+    setStatus(`${getBodyPartDisplayName(selectedJoint)} color set to ${swatch.name}.`, 'success');
 }
 
 function readActorDimension(input, fallback) {
@@ -3490,6 +3960,7 @@ function selectWeapon(weapon) {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
 
     ui.selectionInfo.classList.remove('hidden');
     ui.selectedName.innerText = getWeaponDisplayName(weapon);
@@ -3538,6 +4009,7 @@ function selectJoint(mesh) {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
     // Highlight selected
     setSelectedMeshEmissive(selectedMesh, 0x333333);
 
@@ -3565,6 +4037,7 @@ function deselect() {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
 }
 
 function clearSceneCharacters() {
@@ -3609,6 +4082,13 @@ function getCharacterPlacement(index) {
 function setCharacterColor(character, colorValue) {
     const color = new THREE.Color(colorValue);
     character.userData.characterColor = `#${color.getHexString()}`;
+    character.userData.characterPartColors = {};
+
+    character.traverse(obj => {
+        if (obj.isGroup && obj.userData.isJoint) {
+            delete obj.userData.partColor;
+        }
+    });
 
     character.traverse(obj => {
         if (!obj.isMesh) return;
@@ -3618,6 +4098,81 @@ function setCharacterColor(character, colorValue) {
             if (!material?.color || obj.userData.preserveColor) return;
             material.color.copy(color);
         });
+    });
+}
+
+function getBodyPartBaseName(joint) {
+    return joint?.name?.replace(/_[0-9]+$/, '') || '';
+}
+
+function getBodyPartDisplayName(joint) {
+    return getBodyPartBaseName(joint).replace(/_/g, ' ') || 'Selected';
+}
+
+function getDirectBodyPartMeshes(joint) {
+    return Array.from(joint?.children || [])
+        .filter(child => child.isMesh && child.userData.joint === joint);
+}
+
+function getBodyPartColor(joint) {
+    const explicitColor = joint?.userData?.partColor;
+    if (explicitColor) {
+        return normalizeColorValue(explicitColor, '#ffffff');
+    }
+
+    const mesh = getDirectBodyPartMeshes(joint)[0];
+    const material = Array.isArray(mesh?.material) ? mesh.material[0] : mesh?.material;
+    if (!material?.color) {
+        return BODY_PART_COLOR_SWATCHES[0].value;
+    }
+
+    return `#${material.color.getHexString()}`;
+}
+
+function setBodyPartColor(joint, colorValue) {
+    if (!joint?.userData?.isJoint) return;
+
+    const normalizedColor = normalizeColorValue(colorValue, BODY_PART_COLOR_SWATCHES[0].value);
+    const color = new THREE.Color(normalizedColor);
+    joint.userData.partColor = normalizedColor;
+
+    getDirectBodyPartMeshes(joint).forEach(mesh => {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach(material => {
+            if (!material?.color) return;
+            material.color.copy(color);
+        });
+    });
+
+    const character = getCharacterRootFromJoint(joint);
+    if (character) {
+        character.userData.characterPartColors = {
+            ...(character.userData.characterPartColors || {}),
+            [getBodyPartBaseName(joint)]: normalizedColor
+        };
+    }
+}
+
+function applyCharacterPartColors(character, partColors = {}) {
+    const normalizedPartColors = normalizeCharacterPartColorMap(partColors);
+    const baseColor = new THREE.Color(normalizeColorValue(character.userData.characterColor, '#ffffff'));
+    character.userData.characterPartColors = {};
+
+    character.traverse(obj => {
+        if (!obj.isGroup || !obj.userData.isJoint) return;
+        delete obj.userData.partColor;
+        getDirectBodyPartMeshes(obj).forEach(mesh => {
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach(material => {
+                if (!material?.color) return;
+                material.color.copy(baseColor);
+            });
+        });
+
+        const partColor = normalizedPartColors[getBodyPartBaseName(obj)];
+        if (partColor) {
+            setBodyPartColor(obj, partColor);
+        }
     });
 }
 
@@ -3634,7 +4189,7 @@ function createLimb(width, height, depth, pivotYOffset, material, name, charId) 
     // Translate geometry so the group origin acts as the joint pivot
     geometry.translate(0, pivotYOffset, 0); 
     
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material.clone ? material.clone() : material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     

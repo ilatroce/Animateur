@@ -248,6 +248,14 @@
                         </div>
                     </div>
 
+                    <div id="body-part-color-panel" class="hidden control-panel-emerald space-y-2">
+                        <div class="panel-header">
+                            <h2 class="panel-heading">Part Color</h2>
+                            <span id="body-part-color-name" class="max-w-[8rem] truncate text-[10px] text-muted-foreground">Selected</span>
+                        </div>
+                        <div id="body-part-color-grid" class="body-part-color-grid" aria-label="Body part colors"></div>
+                    </div>
+
                     <div class="control-panel-muted space-y-2">
                         <div class="panel-header">
                             <h2 class="panel-heading">Poses</h2>
@@ -283,6 +291,18 @@
                     <div class="grid grid-cols-2 gap-2">
                         <button id="motion-capture-upload-btn" class="btn btn-secondary">Upload Video</button>
                         <button id="motion-capture-screen-btn" class="btn btn-secondary">Share Screen</button>
+                    </div>
+                    <div class="grid grid-cols-[1fr_auto] gap-2">
+                        <select id="spritesheet-angle-select" class="control-select" aria-label="Spritesheet camera angle">
+                            <option value="current">Current angle</option>
+                            <option value="front">Front</option>
+                            <option value="back">Back</option>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                            <option value="three-quarter">3/4 angle</option>
+                            <option value="top">Top</option>
+                        </select>
+                        <button id="export-spritesheet-btn" class="btn btn-secondary" title="Export transparent spritesheet PNG">Spritesheet</button>
                     </div>
                     <button id="delete-animation-btn" class="btn btn-ghost-destructive w-full">Delete</button>
                     <a href="./tools/ripper.html" target="_blank" rel="noopener noreferrer" class="btn btn-secondary w-full">

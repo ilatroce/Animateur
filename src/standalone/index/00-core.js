@@ -141,6 +141,11 @@ const PLAY_BUTTON_CLASS = `${buttonVariants({ variant: 'secondary', size: 'md' }
 const STOP_BUTTON_CLASS = `${buttonVariants({ variant: 'secondary', size: 'md' })} ${TIMELINE_ACTION_BUTTON_CLASS}`;
 const CLIP_BUTTON_CLASS = `${buttonVariants({ variant: 'secondary', size: 'md' })} ${TIMELINE_ACTION_BUTTON_CLASS}`;
 const CLIP_DISABLED_BUTTON_CLASS = `${buttonVariants({ variant: 'disabled', size: 'md' })} ${TIMELINE_ACTION_BUTTON_CLASS}`;
+const SPRITESHEET_EXPORT = {
+    frameSize: 512,
+    fps: 24,
+    maxFrames: 240
+};
 let timelineViewDuration = TIMELINE_MIN_DURATION;
 const clock = new THREE.Clock();
 const ASSET_FORMAT = 'fast-poser-asset';
@@ -151,6 +156,18 @@ const WEAPON_MIN_SIZE = 0.05;
 const WEAPON_MAX_SIZE = 40;
 const WEAPON_DEFAULT_DIMENSIONS = { width: 0.16, length: 1.65, depth: 0.16 };
 const WEAPON_DEFAULT_COLOR = '#d4d4d8';
+const BODY_PART_COLOR_SWATCHES = [
+    { name: 'White', value: '#ffffff' },
+    { name: 'Black', value: '#111827' },
+    { name: 'Gray', value: '#6b7280' },
+    { name: 'Red', value: '#ef4444' },
+    { name: 'Orange', value: '#f97316' },
+    { name: 'Yellow', value: '#facc15' },
+    { name: 'Green', value: '#22c55e' },
+    { name: 'Blue', value: '#3b82f6' },
+    { name: 'Purple', value: '#8b5cf6' },
+    { name: 'Pink', value: '#ec4899' }
+];
 const STORAGE_KEYS = {
     pose: 'fast-poser:pose-library',
     animation: 'fast-poser:animation-library'
@@ -218,12 +235,14 @@ function init() {
     // Environment (Floor & Grid)
     const grid = new THREE.GridHelper( 40, 40, 0x444444, 0x222222 );
     grid.position.y = 0;
+    grid.userData.hideFromSpritesheet = true;
     scene.add( grid );
 
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
     const floor = new THREE.Mesh( new THREE.PlaneGeometry( 100, 100 ), floorMat );
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
+    floor.userData.hideFromSpritesheet = true;
     scene.add( floor );
 
     summonVfx = createSummonVfxRig();
@@ -305,6 +324,7 @@ function init() {
 
     ui.modeRotateBtn.addEventListener('click', () => setMode('rotate'));
     ui.modeTranslateBtn.addEventListener('click', () => setMode('translate'));
+    createBodyPartColorControls();
     ui.deleteCubeBtn.addEventListener('click', deleteSelectedReferenceCube);
     ui.deleteWeaponBtn.addEventListener('click', deleteSelectedWeapon);
     ui.anchorWeaponBtn.addEventListener('click', anchorSelectedWeaponFromControls);
@@ -374,6 +394,7 @@ function init() {
     ui.loadAnimationBtn.addEventListener('click', loadSelectedAnimationFromLibrary);
     ui.exportAnimationBtn.addEventListener('click', exportSelectedAnimation);
     ui.importAnimationBtn.addEventListener('click', () => ui.animationImportInput.click());
+    ui.exportSpritesheetBtn.addEventListener('click', exportCurrentAnimationSpritesheet);
     ui.deleteAnimationBtn.addEventListener('click', () => deleteSelectedAsset('animation'));
     ui.poseImportInput.addEventListener('change', (event) => handleAssetImport(event, 'pose'));
     ui.animationImportInput.addEventListener('change', (event) => handleAssetImport(event, 'animation'));
@@ -439,6 +460,9 @@ function cacheUi() {
     ui.actorWidthInput = document.getElementById('actor-width-input');
     ui.actorHeightInput = document.getElementById('actor-height-input');
     ui.actorDepthInput = document.getElementById('actor-depth-input');
+    ui.bodyPartColorPanel = document.getElementById('body-part-color-panel');
+    ui.bodyPartColorName = document.getElementById('body-part-color-name');
+    ui.bodyPartColorGrid = document.getElementById('body-part-color-grid');
     ui.selectionInfo = document.getElementById('selection-info');
     ui.selectedName = document.getElementById('selected-name');
     ui.addKeyframeBtn = document.getElementById('add-kf-btn');
@@ -476,6 +500,8 @@ function cacheUi() {
     ui.loadAnimationBtn = document.getElementById('load-animation-btn');
     ui.exportAnimationBtn = document.getElementById('export-animation-btn');
     ui.importAnimationBtn = document.getElementById('import-animation-btn');
+    ui.spritesheetAngleSelect = document.getElementById('spritesheet-angle-select');
+    ui.exportSpritesheetBtn = document.getElementById('export-spritesheet-btn');
     ui.deleteAnimationBtn = document.getElementById('delete-animation-btn');
     ui.assetStatus = document.getElementById('asset-status');
     ui.poseImportInput = document.getElementById('pose-import-input');

@@ -93,6 +93,7 @@ function applyPoseState(pose) {
 
     syncTransformAttachment();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
     syncWeaponControls();
 }
 

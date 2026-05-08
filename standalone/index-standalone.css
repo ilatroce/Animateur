@@ -331,6 +331,45 @@ option {
   box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.55);
 }
 
+.body-part-color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.body-part-color-swatch {
+  position: relative;
+  min-height: 30px;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 44%),
+    var(--swatch-color);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+.body-part-color-swatch:hover {
+  border-color: rgba(96, 165, 250, 0.72);
+}
+
+.body-part-color-swatch.active {
+  border-color: var(--primary);
+  box-shadow:
+    0 0 0 2px rgba(96, 165, 250, 0.24),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.body-part-color-swatch.active::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  border-radius: 5px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

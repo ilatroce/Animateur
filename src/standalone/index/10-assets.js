@@ -270,6 +270,7 @@ function createPoseAsset(name) {
         scene: {
             characterCount: characters.length,
             characterColors: getCharacterColors(),
+            characterPartColors: getCharacterPartColors(),
             weapons: serializeSceneWeapons()
         },
         pose: serializePose(capturePose())
@@ -286,6 +287,7 @@ function createAnimationAsset(name) {
         scene: {
             characterCount: characters.length,
             characterColors: getCharacterColors(),
+            characterPartColors: getCharacterPartColors(),
             weapons: serializeSceneWeapons()
         },
         playbackSpeed,
@@ -443,6 +445,7 @@ function normalizeImportedAsset(data, expectedType, fallbackFileName) {
     const scene = {
         characterCount: getAssetCharacterCount(data),
         characterColors: normalizeCharacterColors(data?.scene?.characterColors ?? data?.characterColors),
+        characterPartColors: normalizeCharacterPartColors(data?.scene?.characterPartColors ?? data?.characterPartColors),
         weapons: normalizeSerializedWeapons(data?.scene?.weapons ?? data?.weapons)
     };
 
@@ -504,6 +507,31 @@ function normalizeCharacterColors(values) {
             }
         })
         .filter(Boolean);
+}
+
+function normalizeCharacterPartColorMap(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+    return Object.entries(value).reduce((partColors, [partName, colorValue]) => {
+        const normalizedName = String(partName || '')
+            .trim()
+            .replace(/[\s-]+/g, '_')
+            .replace(/_[0-9]+$/, '');
+        if (!normalizedName) return partColors;
+
+        try {
+            partColors[normalizedName] = `#${new THREE.Color(colorValue).getHexString()}`;
+        } catch (error) {
+            // Ignore invalid imported colors so one bad swatch does not block the asset.
+        }
+
+        return partColors;
+    }, {});
+}
+
+function normalizeCharacterPartColors(values) {
+    return (Array.isArray(values) ? values : [])
+        .map(value => normalizeCharacterPartColorMap(value));
 }
 
 function normalizeSerializedWeapons(values) {

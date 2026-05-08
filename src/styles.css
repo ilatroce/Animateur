@@ -242,6 +242,45 @@
     @apply min-w-0 rounded-md border border-input bg-background/70 px-2 py-1.5 text-xs text-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-ring;
   }
 
+  .body-part-color-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .body-part-color-swatch {
+    position: relative;
+    min-height: 30px;
+    aspect-ratio: 1 / 1;
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 44%),
+      var(--swatch-color);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+  }
+
+  .body-part-color-swatch:hover {
+    border-color: hsl(var(--primary));
+  }
+
+  .body-part-color-swatch.active {
+    border-color: hsl(var(--primary));
+    box-shadow:
+      0 0 0 2px hsl(var(--primary) / 0.24),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  }
+
+  .body-part-color-swatch.active::after {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border: 2px solid rgba(255, 255, 255, 0.88);
+    border-radius: 5px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+  }
+
   .btn {
     @apply inline-flex h-8 items-center justify-center gap-2 rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
   }

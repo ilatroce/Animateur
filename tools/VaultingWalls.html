@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vaulting Walls</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: "Segoe UI", system-ui, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(249, 115, 22, 0.14), transparent 24%),
+                linear-gradient(180deg, #04060b 0%, #0a1320 55%, #05070d 100%);
+            color: #e2e8f0;
+        }
+
+        #canvas-root {
+            position: fixed;
+            inset: 0;
+        }
+
+        #hud {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            width: min(390px, calc(100vw - 36px));
+            z-index: 10;
+        }
+
+        .panel {
+            background: rgba(8, 15, 28, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 26px;
+            box-shadow: 0 28px 72px rgba(2, 6, 23, 0.46);
+            backdrop-filter: blur(18px);
+            padding: 18px 18px 16px;
+        }
+
+        .eyebrow {
+            margin: 0;
+            font-size: 11px;
+            letter-spacing: 0.24em;
+            text-transform: uppercase;
+            color: #7dd3fc;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 8px 0 10px;
+            font-size: 31px;
+            line-height: 1.04;
+        }
+
+        .lede {
+            margin: 0;
+            color: #cbd5e1;
+            line-height: 1.58;
+            font-size: 14px;
+        }
+
+        .controls,
+        .meta,
+        .editor-grid {
+            margin-top: 16px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .control-line,
+        .meta-line {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 10px 12px;
+            border-radius: 15px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            font-size: 13px;
+        }
+
+        .control-line strong,
+        .meta-line strong {
+            color: #f8fafc;
+        }
+
+        .control-line span,
+        .meta-line span {
+            text-align: right;
+            color: #cbd5e1;
+        }
+
+        .status-card {
+            margin-top: 16px;
+            padding: 14px 14px 15px;
+            border-radius: 18px;
+            background: rgba(10, 19, 34, 0.84);
+            border: 1px solid rgba(56, 189, 248, 0.16);
+        }
+
+        .status-label {
+            margin: 0 0 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #7dd3fc;
+        }
+
+        #status-text {
+            margin: 0;
+            line-height: 1.55;
+            font-size: 13px;
+            color: #dbeafe;
+        }
+
+        #status-text.tone-success {
+            color: #bbf7d0;
+        }
+
+        #status-text.tone-warning {
+            color: #fde68a;
+        }
+
+        #status-text.tone-error {
+            color: #fecaca;
+        }
+
+        #status-text.tone-ready {
+            color: #99f6e4;
+        }
+
+        .footer-note {
+            position: fixed;
+            right: 18px;
+            bottom: 18px;
+            z-index: 10;
+            max-width: min(420px, calc(100vw - 36px));
+            padding: 12px 14px;
+            border-radius: 18px;
+            background: rgba(8, 15, 28, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            box-shadow: 0 18px 44px rgba(2, 6, 23, 0.32);
+            color: #cbd5e1;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            color: #bae6fd;
+        }
+
+        .editor-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .editor-field {
+            display: grid;
+            gap: 6px;
+            padding: 10px 12px;
+            border-radius: 15px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            font-size: 12px;
+        }
+
+        .editor-field label {
+            color: #cbd5e1;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .editor-field input,
+        .editor-field select,
+        .editor-actions button {
+            width: 100%;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(8, 15, 28, 0.92);
+            color: #f8fafc;
+            border-radius: 10px;
+            padding: 9px 10px;
+            font: inherit;
+        }
+
+        .editor-actions {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .editor-actions button {
+            cursor: pointer;
+        }
+
+        @media (max-width: 720px) {
+            #hud {
+                top: 12px;
+                left: 12px;
+                width: calc(100vw - 24px);
+            }
+
+            .footer-note {
+                left: 12px;
+                right: 12px;
+                bottom: 12px;
+                max-width: none;
+            }
+
+            h1 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-root"></div>
+
+    <div id="hud">
+        <section class="panel">
+            <p class="eyebrow">Playable Scene</p>
+            <h1>Vaulting Walls</h1>
+            <p class="lede">
+                Roam the yard with <strong>WASD</strong>, line yourself up with a glowing low wall, and press
+                <strong>E</strong> to trigger a random vault from every local <code>vaulting*</code> and
+                <code>vaultingjump*</code> animation.
+            </p>
+
+            <div class="controls">
+                <div class="control-line"><strong>W / A / S / D</strong><span>Walk the sandbox with the shared loop</span></div>
+                <div class="control-line"><strong>E</strong><span>Vault the nearest aligned wall</span></div>
+                <div class="control-line"><strong>R</strong><span>Reset the player to center</span></div>
+                <div class="control-line"><strong>Mouse</strong><span>Orbit and zoom the follow camera</span></div>
+            </div>
+
+            <div class="meta">
+                <div class="meta-line"><strong>State</strong><span id="player-state">Loading</span></div>
+                <div class="meta-line"><strong>Current Clip</strong><span id="current-clip">None</span></div>
+                <div class="meta-line"><strong>Nearest Wall</strong><span id="nearest-wall">Scanning</span></div>
+                <div class="meta-line"><strong>Vault Pool</strong><span id="vault-pool">Loading...</span></div>
+            </div>
+
+            <div class="status-card">
+                <p class="status-label">Status</p>
+                <p id="status-text">Booting scene and loading walk plus vaulting animation clips...</p>
+            </div>
+        </section>
+
+        <section class="panel" style="margin-top: 14px;">
+            <p class="eyebrow">Wall Editor</p>
+            <h1 style="font-size: 24px; margin-bottom: 8px;">Build Your Course</h1>
+            <p class="lede">
+                Add walls, scale them up as much as you want, move them around, and keep extending the course.
+            </p>
+
+            <div class="editor-grid">
+                <div class="editor-field">
+                    <label for="wall-select">Selected Wall</label>
+                    <select id="wall-select">
+                        <option value="">No walls yet</option>
+                    </select>
+                </div>
+
+                <div class="editor-row">
+                    <div class="editor-field">
+                        <label for="wall-x">X</label>
+                        <input id="wall-x" type="number" step="0.1" value="0">
+                    </div>
+                    <div class="editor-field">
+                        <label for="wall-z">Z</label>
+                        <input id="wall-z" type="number" step="0.1" value="0">
+                    </div>
+                </div>
+
+                <div class="editor-row">
+                    <div class="editor-field">
+                        <label for="wall-width">Width</label>
+                        <input id="wall-width" type="number" min="0.5" step="0.1" value="3">
+                    </div>
+                    <div class="editor-field">
+                        <label for="wall-height">Height</label>
+                        <input id="wall-height" type="number" min="0.5" step="0.1" value="1.2">
+                    </div>
+                </div>
+
+                <div class="editor-row">
+                    <div class="editor-field">
+                        <label for="wall-depth">Depth</label>
+                        <input id="wall-depth" type="number" min="0.2" step="0.05" value="0.34">
+                    </div>
+                    <div class="editor-field">
+                        <label for="wall-yaw">Angle</label>
+                        <input id="wall-yaw" type="number" step="1" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="editor-actions">
+                <button id="add-wall-btn" type="button">Add Wall</button>
+                <button id="place-wall-btn" type="button">Place In Front</button>
+                <button id="duplicate-wall-btn" type="button">Duplicate</button>
+                <button id="delete-wall-btn" type="button">Delete</button>
+            </div>
+        </section>
+    </div>
+
+    <div class="footer-note">
+        This tool page now carries its walk and vault clips locally, matching the other standalone tools, so it can
+        boot without fetching raw JSON files at runtime.
+    </div>
+
+    <script>
+        window.__vaultingWallsBooted = false;
+        window.__setVaultingWallsBootStatus = function (message) {
+            const statusNode = document.getElementById('status-text');
+            const stateNode = document.getElementById('player-state');
+            const clipNode = document.getElementById('current-clip');
+            const wallNode = document.getElementById('nearest-wall');
+            const poolNode = document.getElementById('vault-pool');
+
+            if (statusNode) {
+                statusNode.textContent = message;
+                statusNode.className = 'tone-error';
+            }
+            if (stateNode) stateNode.textContent = 'Unavailable';
+            if (clipNode) clipNode.textContent = 'Unavailable';
+            if (wallNode) wallNode.textContent = 'Blocked';
+            if (poolNode) poolNode.textContent = 'Blocked';
+        };
+
+        setTimeout(function () {
+            if (!window.__vaultingWallsBooted) {
+                window.__setVaultingWallsBootStatus(
+                    'The scene script did not start. Your browser is blocking one of the local files needed by this page.'
+                );
+            }
+        }, 2500);
+    </script>
+    <script src="../vendor/three/three.min.js"></script>
+    <script src="./vaulting-walls-assets.js"></script>
+    <script src="./vaulting-walls-scene.js"></script>
+</body>
+</html>

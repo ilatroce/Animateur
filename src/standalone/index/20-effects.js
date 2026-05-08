@@ -962,6 +962,7 @@ function updateAnimationEffects(delta) {
 function syncSceneToAsset(asset) {
     const requiredCount = Math.max(0, getAssetCharacterCount(asset));
     const colors = normalizeCharacterColors(asset?.scene?.characterColors);
+    const partColors = normalizeCharacterPartColors(asset?.scene?.characterPartColors);
 
     if (characters.length !== requiredCount) {
         clearSceneCharacters();
@@ -975,11 +976,31 @@ function syncSceneToAsset(asset) {
         });
     }
 
+    if (partColors.length > 0) {
+        characters.forEach((character, index) => {
+            applyCharacterPartColors(character, partColors[index]);
+        });
+    }
+
     syncWeaponsToAsset(asset);
+    syncBodyPartColorControls();
 }
 
 function getCharacterColors() {
     return characters.map(character => character.userData.characterColor || '#ffffff');
+}
+
+function getCharacterPartColors() {
+    return characters.map(character => {
+        const partColors = {};
+
+        character.traverse(obj => {
+            if (!obj.isGroup || !obj.userData.isJoint || !obj.userData.partColor) return;
+            partColors[getBodyPartBaseName(obj)] = obj.userData.partColor;
+        });
+
+        return partColors;
+    });
 }
 
 function downloadAssetFile(asset) {

@@ -59,6 +59,7 @@ function selectReferenceCube(cube) {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
 
     ui.selectionInfo.classList.remove('hidden');
     ui.selectedName.innerText = getReferenceCubeDisplayName(cube);
@@ -116,6 +117,51 @@ function syncActorDimensionControls() {
     ui.actorWidthInput.value = formatReferenceCubeDimension(actor.scale.x);
     ui.actorHeightInput.value = formatReferenceCubeDimension(actor.scale.y);
     ui.actorDepthInput.value = formatReferenceCubeDimension(actor.scale.z);
+}
+
+function createBodyPartColorControls() {
+    if (!ui.bodyPartColorGrid) return;
+
+    ui.bodyPartColorGrid.innerHTML = '';
+    BODY_PART_COLOR_SWATCHES.forEach(swatch => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'body-part-color-swatch';
+        button.dataset.color = swatch.value;
+        button.title = swatch.name;
+        button.setAttribute('aria-label', swatch.name);
+        button.style.setProperty('--swatch-color', swatch.value);
+        button.addEventListener('click', () => handleBodyPartColorInput(swatch));
+        ui.bodyPartColorGrid.appendChild(button);
+    });
+}
+
+function syncBodyPartColorControls() {
+    if (!ui.bodyPartColorPanel || !ui.bodyPartColorGrid) return;
+
+    if (!selectedJoint) {
+        ui.bodyPartColorPanel.classList.add('hidden');
+        return;
+    }
+
+    const currentColor = getBodyPartColor(selectedJoint);
+    ui.bodyPartColorPanel.classList.remove('hidden');
+    ui.bodyPartColorName.textContent = getBodyPartDisplayName(selectedJoint);
+
+    Array.from(ui.bodyPartColorGrid.children).forEach(button => {
+        const isActive = normalizeColorValue(button.dataset.color, '#ffffff') === currentColor;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+}
+
+function handleBodyPartColorInput(swatch) {
+    if (!selectedJoint) return;
+
+    setBodyPartColor(selectedJoint, swatch.value);
+    syncBodyPartColorControls();
+    handlePoseEdited();
+    setStatus(`${getBodyPartDisplayName(selectedJoint)} color set to ${swatch.name}.`, 'success');
 }
 
 function readActorDimension(input, fallback) {
@@ -693,6 +739,7 @@ function selectWeapon(weapon) {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
 
     ui.selectionInfo.classList.remove('hidden');
     ui.selectedName.innerText = getWeaponDisplayName(weapon);
@@ -741,6 +788,7 @@ function selectJoint(mesh) {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
     // Highlight selected
     setSelectedMeshEmissive(selectedMesh, 0x333333);
 
@@ -768,6 +816,7 @@ function deselect() {
     syncReferenceCubeControls();
     syncWeaponControls();
     syncActorDimensionControls();
+    syncBodyPartColorControls();
 }
 
 function clearSceneCharacters() {
@@ -812,6 +861,13 @@ function getCharacterPlacement(index) {
 function setCharacterColor(character, colorValue) {
     const color = new THREE.Color(colorValue);
     character.userData.characterColor = `#${color.getHexString()}`;
+    character.userData.characterPartColors = {};
+
+    character.traverse(obj => {
+        if (obj.isGroup && obj.userData.isJoint) {
+            delete obj.userData.partColor;
+        }
+    });
 
     character.traverse(obj => {
         if (!obj.isMesh) return;
@@ -821,6 +877,81 @@ function setCharacterColor(character, colorValue) {
             if (!material?.color || obj.userData.preserveColor) return;
             material.color.copy(color);
         });
+    });
+}
+
+function getBodyPartBaseName(joint) {
+    return joint?.name?.replace(/_[0-9]+$/, '') || '';
+}
+
+function getBodyPartDisplayName(joint) {
+    return getBodyPartBaseName(joint).replace(/_/g, ' ') || 'Selected';
+}
+
+function getDirectBodyPartMeshes(joint) {
+    return Array.from(joint?.children || [])
+        .filter(child => child.isMesh && child.userData.joint === joint);
+}
+
+function getBodyPartColor(joint) {
+    const explicitColor = joint?.userData?.partColor;
+    if (explicitColor) {
+        return normalizeColorValue(explicitColor, '#ffffff');
+    }
+
+    const mesh = getDirectBodyPartMeshes(joint)[0];
+    const material = Array.isArray(mesh?.material) ? mesh.material[0] : mesh?.material;
+    if (!material?.color) {
+        return BODY_PART_COLOR_SWATCHES[0].value;
+    }
+
+    return `#${material.color.getHexString()}`;
+}
+
+function setBodyPartColor(joint, colorValue) {
+    if (!joint?.userData?.isJoint) return;
+
+    const normalizedColor = normalizeColorValue(colorValue, BODY_PART_COLOR_SWATCHES[0].value);
+    const color = new THREE.Color(normalizedColor);
+    joint.userData.partColor = normalizedColor;
+
+    getDirectBodyPartMeshes(joint).forEach(mesh => {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach(material => {
+            if (!material?.color) return;
+            material.color.copy(color);
+        });
+    });
+
+    const character = getCharacterRootFromJoint(joint);
+    if (character) {
+        character.userData.characterPartColors = {
+            ...(character.userData.characterPartColors || {}),
+            [getBodyPartBaseName(joint)]: normalizedColor
+        };
+    }
+}
+
+function applyCharacterPartColors(character, partColors = {}) {
+    const normalizedPartColors = normalizeCharacterPartColorMap(partColors);
+    const baseColor = new THREE.Color(normalizeColorValue(character.userData.characterColor, '#ffffff'));
+    character.userData.characterPartColors = {};
+
+    character.traverse(obj => {
+        if (!obj.isGroup || !obj.userData.isJoint) return;
+        delete obj.userData.partColor;
+        getDirectBodyPartMeshes(obj).forEach(mesh => {
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach(material => {
+                if (!material?.color) return;
+                material.color.copy(baseColor);
+            });
+        });
+
+        const partColor = normalizedPartColors[getBodyPartBaseName(obj)];
+        if (partColor) {
+            setBodyPartColor(obj, partColor);
+        }
     });
 }
 
@@ -837,7 +968,7 @@ function createLimb(width, height, depth, pivotYOffset, material, name, charId) 
     // Translate geometry so the group origin acts as the joint pivot
     geometry.translate(0, pivotYOffset, 0); 
     
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material.clone ? material.clone() : material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     
